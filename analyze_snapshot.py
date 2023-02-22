@@ -620,7 +620,7 @@ class Snapshot:
         """
         if self.num_p5 == 0:
             return None
-        ms, xs, vs  = self.get_sink_particle_attributes(sink_id)
+        ms, xs, vs  = self.get_sink_particle_kinematics(sink_id)
         r, ids, idx = self._sort_particles_by_distance_to_point('PartType0', gas_ids, xs)
         return r, ids, idx
 
@@ -641,7 +641,7 @@ class Snapshot:
         # Need at least two sink particles.
         if self.num_p5 < 2:
             return None
-        ms, xs, vs  = self.get_sink_particle_attributes(sink_id)
+        ms, xs, vs  = self.get_sink_particle_kinematics(sink_id)
         # Index corresponding to chosen sink id.
         idx_s = np.where(self.p5_ids == sink_id)[0][0]
         # Particle IDs of other sink particles.
@@ -649,7 +649,34 @@ class Snapshot:
         r, ids, idx = self._sort_particles_by_distance_to_point('PartType5', ids_rest, xs)
         return r, ids, idx
 
-    # Utility function.
+
+    # For disk identification: need coordinate transformation to disk frame.
+    # (incomplete)
+    # Get net angular momentum unit vector of sink + gas particles.
+    def get_net_ang_mom(self, gas_ids, sink_id):
+        m_cm, x_cm, v_cm = self.system_center_of_mass(gas_ids, sink_id)
+        m_g, x_g, v_g    = self.get_gas_relative_kinematics(gas_ids, x_cm, v_cm)
+        ang_mom_vec      = np.sum(np.cross(x_g, v_g), axis=0)
+        ang_mom_mag      = np.linalg.norm(ang_mom_vec)
+        ang_mom_unit_vec = ang_mom_vec / ang_mom_mag
+        return ang_mom_unit_vec
+
+    # Get orthogonal (x, y) unit vectors given vector z.
+    def _get_orthogonal_vectors(self, z):
+        # Use original x basis vector for consistency.
+        x = np.asarray([1.0, 0.0, 0.0])
+        x -= x.dot(z) * z / np.linalg.norm(z)**2
+        x /= np.linalg.norm(x)
+        y = np.cross(z, x)
+        return x, y
+
+    # Get rotation matrix corresponding to new coordinate system.
+    def _get_rotation_matrix(self, x, y, z):
+        A = np.stack((x, y, z), axis=0)
+        return A
+
+
+    # Utility functions.
     def weight_avg(data, weights):
         "Weighted average"
         weights   = np.abs(weights)
