@@ -87,6 +87,7 @@ class Cloud:
 class Snapshot:
     """
     Class for reading gas/sink particle data from HDF5 snapshot files.
+    Initialize with parent cloud.
     """
 
     def __init__(self, fname, cloud, m_p=1.661e-24):
@@ -197,12 +198,11 @@ class Snapshot:
             self.p5_sf_time          = self.p5['StellarFormationTime'][:]
 
         # Initial t_cross, t_ff, 3D rms velocity, surface density.
-        #self.t0_cross  = self.get_initial_t_cross()
-        #self.t0_ff     = self.get_initial_t_ff()
-        #self.sigma0_3D = self.get_initial_sigma_3D()
-        #self.Sigma0    = self.get_initial_surface_density()
-
-        #self.Cloud = None
+        self.t_cross0 = cloud.t_cross
+        self.t_ff0    = cloud.t_ff
+        self.vrms0    = cloud.vrms
+        self.rho0     = cloud.rho
+        self.Sigma0   = cloud.Sigma
 
     # ----------------------------- FUNCTIONS ---------------------------------
 
@@ -649,24 +649,24 @@ class Snapshot:
         r, ids, idx = self._sort_particles_by_distance_to_point('PartType5', ids_rest, xs)
         return r, ids, idx
 
-# Utility function.
-def weight_avg(data, weights):
-    "Weighted average"
-    weights   = np.abs(weights)
-    weightsum = np.sum(weights)
-    if (weightsum > 0):
-        return np.sum(data * weights) / weightsum
-    else:
-        return 0
+    # Utility function.
+    def weight_avg(data, weights):
+        "Weighted average"
+        weights   = np.abs(weights)
+        weightsum = np.sum(weights)
+        if (weightsum > 0):
+            return np.sum(data * weights) / weightsum
+        else:
+            return 0
 
-def weight_std(data, weights):
-    "Weighted standard deviation."
-    weights   = np.abs(weights)
-    weightsum = np.sum(weights)
-    if (weightsum > 0):
-        return np.sqrt(np.sum(((data - weight_avg(data, weights))**2) * weights) / weightsum)
-    else:
-        return 0
+    def weight_std(data, weights):
+        "Weighted standard deviation."
+        weights   = np.abs(weights)
+        weightsum = np.sum(weights)
+        if (weightsum > 0):
+            return np.sqrt(np.sum(((data - weight_avg(data, weights))**2) * weights) / weightsum)
+        else:
+            return 0
 
 
 
