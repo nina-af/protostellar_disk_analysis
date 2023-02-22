@@ -620,7 +620,7 @@ class Snapshot:
         """
         if self.num_p5 == 0:
             return None
-        ms, xs, vs  = self.get_sink_particle_kinematics(sink_id)
+        ms, xs, vs  = self.get_sink_kinematics(sink_id)
         r, ids, idx = self._sort_particles_by_distance_to_point('PartType0', gas_ids, xs)
         return r, ids, idx
 
@@ -641,7 +641,7 @@ class Snapshot:
         # Need at least two sink particles.
         if self.num_p5 < 2:
             return None
-        ms, xs, vs  = self.get_sink_particle_kinematics(sink_id)
+        ms, xs, vs  = self.get_sink_kinematics(sink_id)
         # Index corresponding to chosen sink id.
         idx_s = np.where(self.p5_ids == sink_id)[0][0]
         # Particle IDs of other sink particles.
