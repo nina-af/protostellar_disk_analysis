@@ -233,9 +233,9 @@ class Snapshot:
         else:
             return None
 
-        x_cm = np.multiply(m, x)/M; u_cm = np.multiply(m, u)/M
-        y_cm = np.multiply(m, y)/M; v_cm = np.multiply(m, v)/M
-        z_cm = np.multiply(m, z)/M; w_cm = np.multiply(m, w)/M
+        x_cm = np.sum(np.multiply(m, x))/M; u_cm = np.sum(np.multiply(m, u))/M
+        y_cm = np.sum(np.multiply(m, y))/M; v_cm = np.sum(np.multiply(m, v))/M
+        z_cm = np.sum(np.multiply(m, z))/M; w_cm = np.sum(np.multiply(m, w))/M
 
         cm_x = np.asarray([x_cm, y_cm, z_cm])
         cm_v = np.asarray([u_cm, v_cm, w_cm])
