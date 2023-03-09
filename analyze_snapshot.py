@@ -209,7 +209,7 @@ class Snapshot:
     
     # Try to get snapshot number from filename.
     def get_i(self):
-        return int(self.fname.split('snapshot_')[1].split('.')[0])
+        return int(self.fname.split('snapshot_')[1].split('.hdf5')[0])
 
     def _get_center_of_mass(self, p_type, p_ids):
         """
