@@ -538,9 +538,9 @@ class Snapshot:
         m_vals              = self.p0_m[idx_g]
         M_cm, x_cm, v_cm    = self.gas_center_of_mass(gas_ids)
         x0, y0, z0          = x_cm[0], x_cm[1], x_cm[2]
-        x_rel, y_rel, z_rel = self.p0_x[idx_g] - x0, self.p0_y[idx_g] - y0, self.p0_z[idx_g] - z0
-        
-        r_vals   = np.sqrt(x_rel*2 + y_rel**2 + z_rel**2)
+        x_rel, y_rel, z_rel = self.p0_x[idx_g] - x0, self.p0_y[idx_g] - y0, self.p0_z[idx_g] - z0        
+
+        r_vals   = np.sqrt(x_rel**2 + y_rel**2 + z_rel**2)
         idx_sort = np.argsort(r_vals)
         m_vals, r_vals = m_vals[idx_sort], r_vals[idx_sort]
         r_rms = self.weight_std(r_vals, m_vals)
