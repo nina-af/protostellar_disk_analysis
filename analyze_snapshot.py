@@ -495,8 +495,8 @@ class Snapshot:
         idx_g   = np.isin(self.p0_ids, gas_ids)
         m       = self.p0_m[idx_g]
         u, v, w = self.p0_u[idx_g], self.p0_v[idx_g], self.p0_w[idx_g]
-        sigma_3D = np.sqrt((weight_std(u, m)**2.0 + weight_std(v, m)**2.0 + \
-                            weight_std(w, m)**2.0))
+        sigma_3D = np.sqrt((self.weight_std(u, m)**2.0 + self.weight_std(v, m)**2.0 + \
+                            self.weight_std(w, m)**2.0))
         return sigma_3D
 
     # Get 3D rms Mach number (c_s in cm s^-1) of gas_ids.
@@ -543,7 +543,7 @@ class Snapshot:
         r_vals   = np.sqrt(x_rel*2 + y_rel**2 + z_rel**2)
         idx_sort = np.argsort(r_vals)
         m_vals, r_vals = m_vals[idx_sort], r_vals[idx_sort]
-        r_rms = weight_std(r_vals, m_vals)
+        r_rms = self.weight_std(r_vals, m_vals)
         return r_rms
 
     # Get half-mass radius of selected gas particles.
@@ -742,7 +742,7 @@ class Snapshot:
 
 
     # Utility functions.
-    def weight_avg(data, weights):
+    def weight_avg(self, data, weights):
         "Weighted average"
         weights   = np.abs(weights)
         weightsum = np.sum(weights)
@@ -751,12 +751,12 @@ class Snapshot:
         else:
             return 0
 
-    def weight_std(data, weights):
+    def weight_std(self, data, weights):
         "Weighted standard deviation."
         weights   = np.abs(weights)
         weightsum = np.sum(weights)
         if (weightsum > 0):
-            return np.sqrt(np.sum(((data - weight_avg(data, weights))**2) * weights) / weightsum)
+            return np.sqrt(np.sum(((data - self.weight_avg(data, weights))**2) * weights) / weightsum)
         else:
             return 0
 
