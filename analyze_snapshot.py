@@ -547,7 +547,7 @@ class Snapshot:
         return r_rms
 
     # Get half-mass radius of selected gas particles.
-    def get_half_mass_radius_gas(self, gas_ids, tol=0.5, verbose=False):
+    def get_half_mass_radius(self, gas_ids, tol=0.5, verbose=False):
         
         # Initial cloud mass, half-mass radius,
         M, R = self.M0, self.R0
