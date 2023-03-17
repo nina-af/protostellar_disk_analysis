@@ -530,6 +530,21 @@ class Snapshot:
         sigma_3D = self.get_sigma_3D_gas(gas_ids)
         alpha    = (5.0 * sigma_3D**2 * self.R0) / (3.0 * self.G_code * self.M0)
         return alpha
+    
+    # Get RMS distance to center of mass.
+    def get_rms_radius(self, gas_ids):
+    
+        idx_g               = np.isin(self.p0_ids, gas_ids)
+        m_vals              = self.p0_m[idx_g]
+        M_cm, x_cm, v_cm    = self.gas_center_of_mass(gas_ids)
+        x0, y0, z0          = x_cm[0], x_cm[1], x_cm[2]
+        x_rel, y_rel, z_rel = self.p0_x[idx_g] - x0, self.p0_y[idx_g] - y0, self.p0_z[idx_g] - z0
+        
+        r_vals   = np.sqrt(x_rel*2 + y_rel**2 + z_rel**2)
+        idx_sort = np.argsort(r_vals)
+        m_vals, r_vals = m_vals[idx_sort], r_vals[idx_sort]
+        r_rms = weight_std(r_vals, m_vals)
+
 
     # Get half-mass radius of selected gas particles.
     def get_half_mass_radius_gas(self, gas_ids, tol=0.5, verbose=False):
