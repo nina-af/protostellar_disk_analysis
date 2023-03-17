@@ -575,21 +575,21 @@ class Snapshot:
         cut = r_vals < r_guess
         cm_enc = np.sum(m_vals[cut])
 
-            while True:
+        while True:
+            if verbose:
+                print('Current:\tr_half = {0:.5f} pc\tm_enc = {1:.5f} Msun'.format(r_guess, m_enc))
+            if m_enc <= m_half + tol and m_enc >= m_half - tol:
                 if verbose:
-                    print('Current:\tr_half = {0:.5f} pc\tm_enc = {1:.5f} Msun'.format(r_guess, m_enc))
-                if m_enc <= m_half + tol and m_enc >= m_half - tol:
-                    if verbose:
-                        print('Found half-mass radius (r = {0:.5f} pc)\t(m_enc = {1:.3f})'.format(r_guess, m_enc))
-                    return r_guess
-                elif m_enc >= m_half + tol:
-                    r_guess *= 0.9
-                    cut = r_vals < r_guess
-                    m_enc = np.sum(m_vals[cut])
-                else:
-                    r_guess *= 1.1
-                    cut = r_vals < r_guess
-                    m_enc = np.sum(m_vals[cut])
+                    print('Found half-mass radius (r = {0:.5f} pc)\t(m_enc = {1:.3f})'.format(r_guess, m_enc))
+                return r_guess
+            elif m_enc >= m_half + tol:
+                r_guess *= 0.9
+                cut = r_vals < r_guess
+                m_enc = np.sum(m_vals[cut])
+            else:
+                r_guess *= 1.1
+                cut = r_vals < r_guess
+                m_enc = np.sum(m_vals[cut])
 
     # Sort particles by distance to specified coordinates.
     def _sort_particles_by_distance_to_point(self, p_type, p_ids, point):
