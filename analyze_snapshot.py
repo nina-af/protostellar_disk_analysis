@@ -573,7 +573,7 @@ class Snapshot:
 
         # Get current enclosed mass.
         cut = r_vals < r_guess
-        cm_enc = np.sum(m_vals[cut])
+        m_enc = np.sum(m_vals[cut])
 
         while True:
             if verbose:
