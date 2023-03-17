@@ -544,7 +544,7 @@ class Snapshot:
         idx_sort = np.argsort(r_vals)
         m_vals, r_vals = m_vals[idx_sort], r_vals[idx_sort]
         r_rms = weight_std(r_vals, m_vals)
-
+        return r_rms
 
     # Get half-mass radius of selected gas particles.
     def get_half_mass_radius_gas(self, gas_ids, tol=0.5, verbose=False):
