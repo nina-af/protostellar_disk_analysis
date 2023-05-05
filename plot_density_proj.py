@@ -156,11 +156,11 @@ def plot_density_proj(s, verbose=False, **kwargs):
         prj._setup_plots(); prj.run_callbacks()
         
     f_str = '{0:.3f} Myr'.format(t_myrs)
-    t_str = '{0:.1f} t/t_cross'.format(s.t / s.t_cross0)
+    t_str = '{0:.1f} t_cross'.format(s.t / s.t_cross0)
     l_str = '{0:s}'.format(kwargs['label'])
     fig.text(0.83, 1.1, f_str, color='white', size=20)
     fig.text(0.83, 1.05, t_str, color='white', size=20)
-    fig.text(0.13, 1.1, l_str, color='white', size=20)
+    fig.text(0.11, 1.1, l_str, color='white', size=20)
     
     Fsize = fig.get_size_inches()
     fig.set_size_inches(11.5, 8)
