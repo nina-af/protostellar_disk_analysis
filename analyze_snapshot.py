@@ -446,7 +446,7 @@ class Snapshot:
             - x: positions of specified sink particles (3D array)
             - v: velocities of specified sink particles (3D array)
         """
-        m, x, v = self._get_particle_relative_kinematics('PartType5', sink_ids)
+        m, x, v = self._get_particle_kinematics('PartType5', sink_ids)
         return m, x, v
 
     # Get sink particle mass, position, velocity relative to x0, v0.
