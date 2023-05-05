@@ -495,8 +495,8 @@ class Snapshot:
         idx_g   = np.isin(self.p0_ids, gas_ids)
         m       = self.p0_m[idx_g]
         u, v, w = self.p0_u[idx_g], self.p0_v[idx_g], self.p0_w[idx_g]
-        sigma_3D = np.sqrt((weight_std(u, m)**2.0 + weight_std(v, m)**2.0 + \
-                            weight_std(w, m)**2.0))
+        sigma_3D = np.sqrt((self.weight_std(u, m)**2.0 + self.weight_std(v, m)**2.0 + \
+                            self.weight_std(w, m)**2.0))
         return sigma_3D
 
     # Get 3D rms Mach number (c_s in cm s^-1) of gas_ids.
@@ -530,6 +530,66 @@ class Snapshot:
         sigma_3D = self.get_sigma_3D_gas(gas_ids)
         alpha    = (5.0 * sigma_3D**2 * self.R0) / (3.0 * self.G_code * self.M0)
         return alpha
+    
+    # Get RMS distance to center of mass.
+    def get_rms_radius(self, gas_ids):
+    
+        idx_g               = np.isin(self.p0_ids, gas_ids)
+        m_vals              = self.p0_m[idx_g]
+        M_cm, x_cm, v_cm    = self.gas_center_of_mass(gas_ids)
+        x0, y0, z0          = x_cm[0], x_cm[1], x_cm[2]
+        x_rel, y_rel, z_rel = self.p0_x[idx_g] - x0, self.p0_y[idx_g] - y0, self.p0_z[idx_g] - z0        
+
+        r_vals   = np.sqrt(x_rel**2 + y_rel**2 + z_rel**2)
+        idx_sort = np.argsort(r_vals)
+        m_vals, r_vals = m_vals[idx_sort], r_vals[idx_sort]
+        r_rms = self.weight_std(r_vals, m_vals)
+        return r_rms
+
+    # Get half-mass radius of selected gas particles.
+    def get_half_mass_radius(self, gas_ids, tol=0.5, verbose=False):
+        
+        # Initial cloud mass, half-mass radius,
+        M, R = self.M0, self.R0
+        m_half  = M / 2.0               # Or use M?
+        r_half  = (0.5)**(1.0/3.0) * R  # If uniform density.
+        r_guess = r_half
+
+        # Center of mass, indices of selected gas particles.
+        M_cm, x_cm, v_cm = self.gas_center_of_mass(gas_ids)
+        idx_g            = np.isin(self.p0_ids, gas_ids)
+
+        # Center of mass; coordinates of selected gas particles relative to center of mass.
+        x0, y0, z0          = x_cm[0], x_cm[1], x_cm[2]
+        x_rel, y_rel, z_rel = self.p0_x[idx_g] - x0, self.p0_y[idx_g] - y0, self.p0_z[idx_g] - z0
+ 
+        # Masses and distances os selected particles.
+        m_vals = self.p0_m[idx_g]
+        r_vals = np.sqrt(x_rel**2 + y_rel**2 + z_rel**2) 
+
+        # Sort gas particles according to distancen from center of mass.
+        idx_sort       = np.argsort(r_vals)
+        m_vals, r_vals = m_vals[idx_sort], r_vals[idx_sort] 
+
+        # Get current enclosed mass.
+        cut = r_vals < r_guess
+        m_enc = np.sum(m_vals[cut])
+
+        while True:
+            if verbose:
+                print('Current:\tr_half = {0:.5f} pc\tm_enc = {1:.5f} Msun'.format(r_guess, m_enc))
+            if m_enc <= m_half + tol and m_enc >= m_half - tol:
+                if verbose:
+                    print('Found half-mass radius (r = {0:.5f} pc)\t(m_enc = {1:.3f})'.format(r_guess, m_enc))
+                return r_guess
+            elif m_enc >= m_half + tol:
+                r_guess *= 0.9
+                cut = r_vals < r_guess
+                m_enc = np.sum(m_vals[cut])
+            else:
+                r_guess *= 1.1
+                cut = r_vals < r_guess
+                m_enc = np.sum(m_vals[cut])
 
     # Sort particles by distance to specified coordinates.
     def _sort_particles_by_distance_to_point(self, p_type, p_ids, point):
@@ -682,7 +742,7 @@ class Snapshot:
 
 
     # Utility functions.
-    def weight_avg(data, weights):
+    def weight_avg(self, data, weights):
         "Weighted average"
         weights   = np.abs(weights)
         weightsum = np.sum(weights)
@@ -691,12 +751,12 @@ class Snapshot:
         else:
             return 0
 
-    def weight_std(data, weights):
+    def weight_std(self, data, weights):
         "Weighted standard deviation."
         weights   = np.abs(weights)
         weightsum = np.sum(weights)
         if (weightsum > 0):
-            return np.sqrt(np.sum(((data - weight_avg(data, weights))**2) * weights) / weightsum)
+            return np.sqrt(np.sum(((data - self.weight_avg(data, weights))**2) * weights) / weightsum)
         else:
             return 0
 
