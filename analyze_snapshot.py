@@ -116,16 +116,21 @@ class Snapshot:
         self.num_p5 = self.header.attrs['NumPart_Total'][5]
         self.t = self.header.attrs['Time']
 
-        # Unit conversions; note typo in G_code.
+        # Unit conversions to cgs; note typo in header for G_code.
         self.G_code = self.header.attrs['Gravitational_Constant_In_Code_Inits']
         self.B_code = self.header.attrs['Internal_UnitB_In_Gauss']
         self.l_unit = self.header.attrs['UnitLength_In_CGS']
         self.m_unit = self.header.attrs['UnitMass_In_CGS']
         self.v_unit = self.header.attrs['UnitVelocity_In_CGS']
         self.B_unit = B_unit
-        self.rho_unit   = self.m_unit / self.l_unit**3
         self.t_unit     = self.l_unit / self.v_unit
         self.t_unit_myr = self.t_unit / (3600.0 * 24.0 * 365.0 * 1e6)
+        self.rho_unit   = self.m_unit / self.l_unit**3
+        self.P_unit     = self.m_unit / self.l_unit / self.t_unit**2
+
+        # Other useful conversion factors.
+        self.cm_to_AU = 6.6845871226706e-14
+        self.cm_to_pc = 3.2407792896664e-19
 
         # Critical density for star formation
         self.sf_density_threshold = self.header.attrs['Density_Threshold_For_SF_CodeUnits']
