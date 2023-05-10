@@ -318,7 +318,7 @@ class Snapshot:
         """
         M1, x1, v1 = self.gas_center_of_mass(gas_ids)
         M2, x2, v2 = self.sink_center_of_mass(sink_ids)
-        M, cm_x, cm_v = self._two_body_center_of_mass(M1, M2, x1, v1, x2, v2)
+        M, cm_x, cm_v = self._two_body_center_of_mass(M1, x1, v1, M2, x2, v2)
         return M, cm_x, cm_v
 
     # Get particle mass/position/velocity.
