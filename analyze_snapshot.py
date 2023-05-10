@@ -247,7 +247,7 @@ class Snapshot:
 
         return M, cm_x, cm_v
 
-    def _two_body_center_of_mass(m1, x1, v1, m2, x2, v2):
+    def _two_body_center_of_mass(self, m1, x1, v1, m2, x2, v2):
         """
         Calculates center of mass for a two-body system.
         Parameters:
