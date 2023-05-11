@@ -870,7 +870,7 @@ class Snapshot:
             print('Checking density threshold (n_H > {0:.1g} cm^-3)...'.format(n_H_min))
 
         # Satisfies density threshold?
-        is_dense = np.greater(self.p0_n_H[mask_r_max], 1e9)  # Can experiment with density threshold.
+        is_dense = np.greater(self.p0_n_H[mask_r_max], n_H_min)  # Can experiment with density threshold.
 
         # Combined boolean mask.
         mask_all = np.logical_and(np.logical_and(np.logical_and(is_dense, is_rotating), is_hydrostatic),
