@@ -694,33 +694,33 @@ class Snapshot:
         r, ids, idx = self._sort_particles_by_distance_to_point('PartType0', gas_ids, xs)
         return r, ids, idx
 
-    # Sort sink particles by distance to sink.
-    def sort_sinks_by_distance_to_sink(self, sink_id):
+    # Sort specified sink particles by distance to primary sink particle.
+    def sort_sinks_by_distance_to_sink(self, sink_ids, primary_sink_id):
         """
-        Sorts all other sink particles according to distance from the specified
-        sink particle.
+        Sorts sink particles specified by sink_ids according to distance from
+        the sink particle specified by primary_sink_id.
         Parameters:
-            - sink_id: particle ID of the specified sink particle (all other
-            sink particles sorted by distance to this sink).
+            - sink_ids: particle IDs of sinks to sort by distance to
+            primary sink particle.
+            - primary_sink_id: sort by distance to this sink particle.
         Returns:
-            - r_sort: [1D array] sorted distances to the specified sink
+            - r_sort: [1D array] sorted distances to the primary sink
             particle, in increasing order.
             - ids_sort: [1D array] sorted sink particle IDs.
             - idx_sort: [1D array] indices corresponding to sort.
         """
-        # Need at least two sink particles.
-        if self.num_p5 < 2:
-            return None
-        ms, xs, vs  = self.get_sink_kinematics(sink_id)
-        # Index corresponding to chosen sink id.
-        idx_s = np.where(self.p5_ids == sink_id)[0][0]
-        # Particle IDs of other sink particles.
-        ids_rest = np.delete(self.p5_ids, idx_s, 0)
+        # Get kinematics of primary sink particle.
+        ms, xs, vs  = self.get_sink_kinematics(primary_sink_id)
+        # Determine particle IDs of other sink particles.
+        mask_r   = np.isin(self.p5_ids, sink_ids)
+        ids_rest = self.p5_ids[mask_r]
+        # Exclude primary_sink if in sink_ids.
+        if np.sum(np.isin(ids_rest, primary_sink_id)) == 1:
+            mask_s   = np.isin(ids_rest, primary_sink_id, invert=True)
+            ids_rest = ids_rest[mask_s]
         r, ids, idx = self._sort_particles_by_distance_to_point('PartType5', ids_rest, xs)
         return r, ids, idx
 
-    # For disk identification: need coordinate transformation to disk frame.
-    # (incomplete)
     # Get net angular momentum unit vector of sink + gas particles.
     def get_net_ang_mom(self, gas_ids, sink_id):
         m_cm, x_cm, v_cm = self.system_center_of_mass(gas_ids, sink_id)
@@ -751,9 +751,30 @@ class Snapshot:
     #  - Rotational support exceeds thermal support (0.5 * rho * v_phi^2 > 2 P).
     #  - Gas exceeds minimum number density threshold.
     # Can specify r_max in AU, n_H_min in cm^-3.
-    def get_single_disk(self, sink_id, gas_ids, r_max_AU=500.0, n_H_min=1e9, verbose=False):
-        if verbose:
-            print('Getting disk around sink ID {0:d}.'.format(sink_id))
+    def get_disk(self, sink_ids, gas_ids, r_max_AU=500.0, n_H_min=1e9, verbose=False):
+
+        is_single_disk    = True
+        disk_name         = ''
+        num_sinks_in_disk = 1
+
+        # Getting disk around single sink particle?
+        if np.isscalar(sink_ids):
+            primary_sink   = sink_ids
+            disk_name      = 'disk_single_{0:d}'.format(sink_ids)
+            if verbose:
+                print('Getting single disk (sink ID {0:d})...'.format(sink_ids))
+        # Getting disk around multiple sink particles? Label by most massive sink.
+        else:
+            is_single_disk    = False
+            sink_ids_mask     = np.isin(self.p5_ids, sink_ids)
+            sink_masses       = self.p5_m[sink_ids_mask]
+            sink_ids_in_disk  = self.p5_ids[sink_ids_mask]
+            num_sinks_in_disk = len(sink_masses)
+            primary_sink      = sink_ids_in_disk[np.argmax(sink_masses)]
+            disk_name         = 'disk_multi_{0:d}_{1:d}'.format(num_sinks_in_disk, primary_sink)
+            if verbose:
+                print('Getting multiple disk (primary sink ID {0:d}; {1:d} sinks total)...'.format(primary_sink, num_sinks_in_disk))
+
         # Initial Boolean mask specified by gas_ids.
         mask_init = np.isin(self.p0_ids, gas_ids)
         if verbose:
@@ -766,14 +787,21 @@ class Snapshot:
         if verbose:
             print('Initial r_max = {0:.1f} AU.'.format(r_max_AU))
 
-        # Check that r_max is less than distance to nearest neighboring sink particle.
+        # Check that r_max is less than distance to nearest non-disk sink particle.
         if self.num_p5 > 1:
             if verbose:
                 print('Checking for nearby sinks within {0:.1f} AU...'.format(r_max_AU))
 
-            r, ids, idx = self.sort_sinks_by_distance_to_sink(sink_id)
+            if is_single_disk:
+                r, ids, idx = self.sort_sinks_by_distance_to_sink(self.p5_ids, primary_sink)
+            else:
+                other_sink_ids = self.p5_ids[np.isin(self.p5_ids, sink_ids, invert=True)]
+                if len(other_sink_ids) == 0:
+                    r = np.asarray([10.0*r_max_code])
+                else:
+                    r, ids, idx = self.sort_sinks_by_distance_to_sink(other_sink_ids, primary_sink)
 
-            # Minimum distance between sink particles [code units].
+            # Minimum distance to non-disk sink particles [code units].
             r_near_code = r[0]
             r_near_cgs  = r_near_code * self.l_unit
             r_near_AU   = r_near_cgs * self.cm_to_AU
@@ -790,8 +818,11 @@ class Snapshot:
                 if verbose:
                     print('Updating r_max = {0:.1f} AU.'.format(r_near_AU))
 
-        # Sort gas particles by distance to first sink.
-        r_sort, ids_sort, idx_sort = self.sort_gas_by_distance_to_sink(gas_ids, sink_id)
+        # Sink mass, position, velocity.
+        m, sink_x, sink_v = self.sink_center_of_mass(sink_ids)
+
+        # Sort gas particles by distance to sink system center of mass.
+        r_sort, ids_sort, idx_sort = self.sort_gas_by_distance_to_point(gas_ids, sink_x)
 
         # Update initial mask to exclude gas particles beyond r_max from consideration.
         r_max_idx  = np.argmax(r_sort > r_max)
@@ -809,8 +840,8 @@ class Snapshot:
         if verbose:
             print('Transforming to sink-centered disk coordinate system...')
 
-        # Get angular momentum vector from all gas particles within r_max AU of sink particle.
-        L_unit_vec   = self.get_net_ang_mom(g_ids_in_sphere, sink_id)
+        # Get angular momentum vector from all gas particles within r_max AU of sink particles.
+        L_unit_vec   = self.get_net_ang_mom(g_ids_in_sphere, sink_ids)
 
         # Define rotation matrix for coordinate system transformation.
         x_vec, y_vec = self._get_orthogonal_vectors(L_unit_vec)
@@ -819,9 +850,6 @@ class Snapshot:
         # Original coordinates (within r_max AU sphere); array shape = (N, 3).
         x_orig = self.p0['Coordinates'][:][mask_r_max]
         v_orig = self.p0['Velocities'][:][mask_r_max]
-
-        # Sink mass, position, velocity.
-        m, sink_x, sink_v = self.sink_center_of_mass(sink_id)
 
         # Coordinates relative to sink particle coordiantes; array shape = (N, 3).
         x_centered = x_orig - sink_x.T
@@ -883,7 +911,6 @@ class Snapshot:
         disk_ids = g_ids_in_sphere[mask_all]
 
         return disk_ids
-
 
     # Utility functions.
     def weight_avg(self, data, weights):
