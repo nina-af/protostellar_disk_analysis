@@ -84,6 +84,17 @@ class Cloud:
             print('t_ff = {0:.3g} [code]'.format(t_ff))
         return t_ff
 
+class Disk:
+    """
+    Class for analyzing disk properties within Snapshot.
+    To-do: disk mass, radius, temperature, ionization fraction, etc.
+    """
+
+    def __init__(self, disk_ids, snapshot):
+
+        self.Snapshot = snapshot
+        self.disk_ids = disk_ids
+
 class Snapshot:
     """
     Class for reading gas/sink particle data from HDF5 snapshot files.
@@ -744,19 +755,27 @@ class Snapshot:
         A = np.stack((x, y, z), axis=0)
         return A
 
-    # Identify gas particles in gas_ids belonging to disk around sink_id. Particles
-    # must satisfy the following checks:
-    #  - Gas is rotationally supported (v_phi > 2 v_r).
-    #  - Gas is close to hydrostatic equilibrium (v_phi > 2 v_z).
-    #  - Rotational support exceeds thermal support (0.5 * rho * v_phi^2 > 2 P).
-    #  - Gas exceeds minimum number density threshold.
-    # Can specify r_max in AU, n_H_min in cm^-3.
+    # Identify gas particles in gas_ids belonging to disk around sink_ids.
     def get_disk(self, sink_ids, gas_ids, r_max_AU=500.0, n_H_min=1e9, verbose=False):
-
+        """
+        Identifies subset of specified gas particles belonging to disk
+        around specified sink particles based upon the following checks:
+          - Gas is rotationally supported (v_phi > 2 v_r).
+          - Gas is close to hydrostatic equilibrium (v_phi > 2 v_z).
+          - Rotational support exceeds thermal support (0.5 * rho * v_phi^2 > 2 P).
+          - Gas exceeds minimum number density threshold (n_H_min).
+        Parameters:
+            - sink_ids: particle IDs of the specified sink particles.
+            - gas_ids: particle IDs of the specified gas particles.
+            - r_max_AU: max disk radius in AU about sink center of mass.
+            - n_H_min: minimum number density threshold.
+        Returns:
+            - disk_ids [1D array]: particle IDs of gas particles belonging to
+            disk.
+        """
         is_single_disk    = True
         disk_name         = ''
         num_sinks_in_disk = 1
-
         # Getting disk around single sink particle?
         if np.isscalar(sink_ids):
             primary_sink   = sink_ids
@@ -774,24 +793,19 @@ class Snapshot:
             disk_name         = 'disk_multi_{0:d}_{1:d}'.format(num_sinks_in_disk, primary_sink)
             if verbose:
                 print('Getting multiple disk (primary sink ID {0:d}; {1:d} sinks total)...'.format(primary_sink, num_sinks_in_disk))
-
         # Initial Boolean mask specified by gas_ids.
         mask_init = np.isin(self.p0_ids, gas_ids)
         if verbose:
             print('...size(mask_init) = {0:d}'.format(np.sum(mask_init)))
-
         # Convert r_max to cgs and code units.
         r_max_cgs  = r_max_AU / self.cm_to_AU
         r_max_code = r_max_cgs / self.l_unit
-
         if verbose:
             print('Initial r_max = {0:.1f} AU.'.format(r_max_AU))
-
         # Check that r_max is less than distance to nearest non-disk sink particle.
         if self.num_p5 > 1:
             if verbose:
                 print('Checking for nearby sinks within {0:.1f} AU...'.format(r_max_AU))
-
             if is_single_disk:
                 r, ids, idx = self.sort_sinks_by_distance_to_sink(self.p5_ids, primary_sink)
             else:
@@ -800,15 +814,12 @@ class Snapshot:
                     r = np.asarray([10.0*r_max_code])
                 else:
                     r, ids, idx = self.sort_sinks_by_distance_to_sink(other_sink_ids, primary_sink)
-
             # Minimum distance to non-disk sink particles [code units].
             r_near_code = r[0]
             r_near_cgs  = r_near_code * self.l_unit
             r_near_AU   = r_near_cgs * self.cm_to_AU
-
             if verbose:
                 print('Found nearest sink at r = {0:.1f} AU.'.format(r_near_AU))
-
             if r_max_code < r_near_code:
                 r_max = r_max_code
                 if verbose:
@@ -817,78 +828,58 @@ class Snapshot:
                 r_max = r_near_code
                 if verbose:
                     print('Updating r_max = {0:.1f} AU.'.format(r_near_AU))
-
-        # Sink mass, position, velocity.
+        # Sink system center of mass, position, velocity.
         m, sink_x, sink_v = self.sink_center_of_mass(sink_ids)
-
         # Sort gas particles by distance to sink system center of mass.
         r_sort, ids_sort, idx_sort = self.sort_gas_by_distance_to_point(gas_ids, sink_x)
-
         # Update initial mask to exclude gas particles beyond r_max from consideration.
         r_max_idx  = np.argmax(r_sort > r_max)
         mask_r_max = np.full(len(self.p0_ids), True, dtype=bool)
         mask_r_max[idx_sort[r_max_idx:]] = False
-
         mask_r_max = np.logical_and(mask_init, mask_r_max)
         if verbose:
             print('...size(mask_r_max) = {0:d}'.format(np.sum(mask_r_max)))
-
         # IDs of gas particles within sphere of radius r_max.
         g_ids_in_sphere = self.p0_ids[mask_r_max]
-
         # Transform to sink-centered coordinate system; z axis parallel to net ang. momentum.
         if verbose:
             print('Transforming to sink-centered disk coordinate system...')
-
         # Get angular momentum vector from all gas particles within r_max AU of sink particles.
         L_unit_vec   = self.get_net_ang_mom(g_ids_in_sphere, sink_ids)
-
         # Define rotation matrix for coordinate system transformation.
         x_vec, y_vec = self._get_orthogonal_vectors(L_unit_vec)
         A            = self._get_rotation_matrix(x_vec, y_vec, L_unit_vec)
-
         # Original coordinates (within r_max AU sphere); array shape = (N, 3).
         x_orig = self.p0['Coordinates'][:][mask_r_max]
         v_orig = self.p0['Velocities'][:][mask_r_max]
-
         # Coordinates relative to sink particle coordiantes; array shape = (N, 3).
         x_centered = x_orig - sink_x.T
         v_centered = v_orig - sink_v.T
-
         # Rotated to angular momentum frame; array shape = (3, N).
         x_rot = np.matmul(A, x_centered.T)
         v_rot = np.matmul(A, v_centered.T)
-
         # Cartesian coordinate system.
         x, y, z = x_rot[0, :], x_rot[1, :], x_rot[2, :]
         u, v, w = v_rot[0, :], v_rot[1, :], v_rot[2, :]
-
         # Cylindrical coordinate system.
         r   = np.sqrt(x**2 + y**2)
         phi = np.arctan(np.divide(y, x))
-
         # Radial/azimuthal/z-velocity for disk membership checks.
         v_r   = np.divide(np.multiply(x, u) + np.multiply(y, v), r)
         v_phi = np.divide((np.multiply(x, v) - np.multiply(y, u)), r)
         v_z   = w
-
         if verbose:
             print('Checking rotational support (v_phi > 2 * v_r)...')
-
         # Gas is rotationally supported?
         is_rotating = np.greater(np.abs(v_phi), 2.0 * np.abs(v_r))
-
         if verbose:
             print('...found {0:d} particles.'.format(np.sum(is_rotating)))
             print('Checking hydrostatic equilibrium (v_phi > 2 * v_z)...')
-
         # Gas is in hydrostatic equilibrium?
         is_hydrostatic = np.greater(np.abs(v_phi), 2.0 * np.abs(v_z))
-
         if verbose:
             print('...found {0:d} particles.'.format(np.sum(is_hydrostatic)))
             print('Checking if rotational support exceeds thermal pressure support...')
-
         # Rotational support is greater than thermal pressure support?
         is_rotationally_supported = np.greater(0.5 * np.multiply(self.p0_rho[mask_r_max] * self.rho_unit,
                                                                 (v_phi * self.v_unit)**2),
@@ -896,20 +887,15 @@ class Snapshot:
         if verbose:
             print('...found {0:d} particles.'.format(np.sum(is_rotationally_supported)))
             print('Checking density threshold (n_H > {0:.1g} cm^-3)...'.format(n_H_min))
-
         # Satisfies density threshold?
         is_dense = np.greater(self.p0_n_H[mask_r_max], n_H_min)  # Can experiment with density threshold.
-
         # Combined boolean mask.
         mask_all = np.logical_and(np.logical_and(np.logical_and(is_dense, is_rotating), is_hydrostatic),
                                   is_rotationally_supported)
-
         if verbose:
             print('...found {0:d} particles.'.format(np.sum(is_dense)))
             print('Number of particles satisfying all checks: {0:d}'.format(np.sum(mask_all)))
-
         disk_ids = g_ids_in_sphere[mask_all]
-
         return disk_ids
 
     # Utility functions.
