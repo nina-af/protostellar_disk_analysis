@@ -104,13 +104,14 @@ class Snapshot:
     def __init__(self, fname, cloud, m_p=1.661e-24, B_unit=1e4):
 
         # Initial cloud parameters.
-        self.fname  = fname
-        self.Cloud  = cloud
-        self.M0     = cloud.M      # Initial cloud mass, radius.
-        self.R0     = cloud.R
-        self.L0     = cloud.L      # Volume-equivalent length.
-        self.alpha0 = cloud.alpha  # Initial virial parameter.
-        self.m_p    = m_p
+        self.fname   = fname
+        self.snapdir = self.get_snapdir()
+        self.Cloud   = cloud
+        self.M0      = cloud.M      # Initial cloud mass, radius.
+        self.R0      = cloud.R
+        self.L0      = cloud.L      # Volume-equivalent length.
+        self.alpha0  = cloud.alpha  # Initial virial parameter.
+        self.m_p     = m_p
 
         # Open h5py file.
         self.f = h5py.File(fname, 'r')
@@ -226,6 +227,10 @@ class Snapshot:
     # Try to get snapshot number from filename.
     def get_i(self):
         return int(self.fname.split('snapshot_')[1].split('.hdf5')[0])
+
+    # Try to get snapshot datadir from filename.
+    def get_snapdir(self):
+        return self.fname.split('snapshot_')[0]
 
     def _get_center_of_mass(self, p_type, p_ids):
         """
@@ -756,7 +761,8 @@ class Snapshot:
         return A
 
     # Identify gas particles in gas_ids belonging to disk around sink_ids.
-    def get_disk(self, sink_ids, gas_ids, r_max_AU=500.0, n_H_min=1e9, verbose=False):
+    def get_disk(self, sink_ids, gas_ids, r_max_AU=500.0, n_H_min=1e9, verbose=False,
+                 disk_name='', save_disk=False, diskdir=None):
         """
         Identifies subset of specified gas particles belonging to disk
         around specified sink particles based upon the following checks:
@@ -774,12 +780,12 @@ class Snapshot:
             disk.
         """
         is_single_disk    = True
-        disk_name         = ''
         num_sinks_in_disk = 1
         # Getting disk around single sink particle?
         if np.isscalar(sink_ids):
             primary_sink   = sink_ids
-            disk_name      = 'disk_single_{0:d}'.format(sink_ids)
+            if disk_name == '':
+                disk_name      = 'disk_single_{0:d}'.format(sink_ids)
             if verbose:
                 print('Getting single disk (sink ID {0:d})...'.format(sink_ids))
         # Getting disk around multiple sink particles? Label by most massive sink.
@@ -790,9 +796,12 @@ class Snapshot:
             sink_ids_in_disk  = self.p5_ids[sink_ids_mask]
             num_sinks_in_disk = len(sink_masses)
             primary_sink      = sink_ids_in_disk[np.argmax(sink_masses)]
-            disk_name         = 'disk_multi_{0:d}_{1:d}'.format(num_sinks_in_disk, primary_sink)
+            if disk_name == '':
+                disk_name         = 'disk_multi_{0:d}_{1:d}'.format(num_sinks_in_disk, primary_sink)
             if verbose:
                 print('Getting multiple disk (primary sink ID {0:d}; {1:d} sinks total)...'.format(primary_sink, num_sinks_in_disk))
+        # Sink system center of mass, position, velocity.
+        m, sink_x, sink_v = self.sink_center_of_mass(sink_ids)
         # Initial Boolean mask specified by gas_ids.
         mask_init = np.isin(self.p0_ids, gas_ids)
         if verbose:
@@ -802,7 +811,8 @@ class Snapshot:
         r_max_code = r_max_cgs / self.l_unit
         if verbose:
             print('Initial r_max = {0:.1f} AU.'.format(r_max_AU))
-        # Check that r_max is less than distance to nearest non-disk sink particle.
+        # Check that r_max is less than distance from center of mass to nearest non-disk sink particle.
+        r_max_truncated_by_neighbor = False
         if self.num_p5 > 1:
             if verbose:
                 print('Checking for nearby sinks within {0:.1f} AU...'.format(r_max_AU))
@@ -813,7 +823,10 @@ class Snapshot:
                 if len(other_sink_ids) == 0:
                     r = np.asarray([10.0*r_max_code])
                 else:
-                    r, ids, idx = self.sort_sinks_by_distance_to_sink(other_sink_ids, primary_sink)
+                    # Sort other sinks by distance to sink system center of mass.
+                    r, ids, idx = self.sort_sinks_by_distance_to_point(other_sink_ids, sink_x)
+                    # Sort other sinks by distance to primary (most massive) sink.
+                    #r, ids, idx = self.sort_sinks_by_distance_to_sink(other_sink_ids, primary_sink)
             # Minimum distance to non-disk sink particles [code units].
             r_near_code = r[0]
             r_near_cgs  = r_near_code * self.l_unit
@@ -827,9 +840,8 @@ class Snapshot:
             else:
                 r_max = r_near_code
                 if verbose:
+                    r_max_truncated_by_neighbor = True
                     print('Updating r_max = {0:.1f} AU.'.format(r_near_AU))
-        # Sink system center of mass, position, velocity.
-        m, sink_x, sink_v = self.sink_center_of_mass(sink_ids)
         # Sort gas particles by distance to sink system center of mass.
         r_sort, ids_sort, idx_sort = self.sort_gas_by_distance_to_point(gas_ids, sink_x)
         # Update initial mask to exclude gas particles beyond r_max from consideration.
@@ -896,6 +908,40 @@ class Snapshot:
             print('...found {0:d} particles.'.format(np.sum(is_dense)))
             print('Number of particles satisfying all checks: {0:d}'.format(np.sum(mask_all)))
         disk_ids = g_ids_in_sphere[mask_all]
+
+        # Save disk IDs and relevant disk identification parameters to HDF5 file.
+        if save_disk:
+            # Default to saving in snapshot directory.
+            if diskdir is None:
+                diskdir = self.snapdir
+            fname_disk = os.path.join(diskdir, 'snapshot_{0:03d}_{1:s}.hdf5'.format(i, disk_name))
+            if verbose:
+                print('Saving to {0:s}...'.format(fname_disk))
+            f_disk = h5py.File(fname_disk, 'w')
+            # Header.
+            header_disk = f_disk.create_dataset('header', (1,))
+            header_disk.attrs.create('snapshot', self.get_i())
+            header_disk.attrs.create('snapdir', self.snapdir)
+            if is_single_disk:
+                header_disk.attrs.create('disk_type', 'single')  # Single disk.
+            else:
+                header_disk.attrs.create('disk_type', 'multiple')  # Multiple disk.
+            header_disk.attrs.create('disk_name', disk_name)
+            header_disk.attrs.create('primary_sink', primary_sink)
+            header_disk.attrs.create('num_sinks', num_sinks_in_disk)
+            header_disk.attrs.create('num_gas', len(disk_ids))
+            header_disk.attrs.create('sink_ids', np.asarray(sink_ids))
+            header_disk.attrs.create('truncation_radius_AU', r_max * self.l_unit * self.cm_to_AU)
+            if r_max_truncated_by_neighbor:
+                header_disk.attrs.create('truncated_by_neighbor', 'True')
+            else:
+                header_disk.attrs.create('truncated_by_neighbor', 'False')
+            header_disk.attrs.create('n_H_min', n_H_min)
+            header_disk.attrs.create('disk_mass', self.p0_mass[0] * len(disk_ids))
+            header_disk.attrs.create('disk_dm', self.p0_mass[0])
+            # Dataset of disk IDs.
+            f_disk.create_dataset('disk_ids', data=np.asarray(disk_ids))
+            f_disk.close()
         return disk_ids
 
     # Utility functions.
