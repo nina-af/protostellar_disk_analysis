@@ -867,10 +867,19 @@ class Snapshot:
         # Sort gas particles by distance to sink system center of mass.
         r_sort, ids_sort, idx_sort = self.sort_gas_by_distance_to_point(gas_ids, sink_x)
         # Update initial mask to exclude gas particles beyond r_max from consideration.
-        r_max_idx  = np.argmax(r_sort > r_max)
-        mask_r_max = np.full(len(self.p0_ids), True, dtype=bool)
-        mask_r_max[idx_sort[r_max_idx:]] = False
-        mask_r_max = np.logical_and(mask_init, mask_r_max)
+        r_max_idx     = np.argmax(r_sort > r_max)
+        ids_in_sphere = ids_sort[:r_max_idx]
+        mask_r_max    = np.isin(self.p0_ids, ids_in_sphere)
+        mask_r_max    = np.logical_and(mask_init, mask_r_max)
+
+
+        #r_max_idx  = np.argmax(r_sort > r_max)
+        #mask_r_max = np.full(len(gas_ids), True, dtype=bool)
+        #mask_r_max[idx_sort[r_max_idx:]] = False
+        #mask_r_max = np.logical_and(mask_init, mask_r_max)
+
+
+
         if verbose:
             print('...size(mask_r_max) = {0:d}'.format(np.sum(mask_r_max)))
         # IDs of gas particles within sphere of radius r_max.
