@@ -88,13 +88,33 @@ class Cloud:
 class Disk:
     """
     Class for analyzing disk properties within Snapshot.
+    Initialize with HDF5 file created by Snapshot.get_disk().
     To-do: disk mass, radius, temperature, ionization fraction, etc.
     """
 
-    def __init__(self, disk_ids, snapshot):
+    def __init__(self, fname):
 
-        self.Snapshot = snapshot
-        self.disk_ids = disk_ids
+        # Read from saved HDF5 file.
+        f      = h5py.File(fname, 'r')
+        header = f['header']
+
+        self.snapshot     = header.attrs['snapshot']
+        self.snapdir      = header.attrs['snapdir']
+        self.disk_type    = header.attrs['disk_type']
+        self.disk_name    = header.attrs['disk_name']
+        self.primary_sink = header.attrs['primary_sink']
+        self.num_sinks    = header.attrs['num_sinks']
+        self.num_gas      = header.attrs['num_gas']
+        self.n_H_min      = header.attrs['n_H_min']
+        self.disk_dm      = header.attrs['disk_dm']
+        self.disk_mass    = header.attrs['disk_mass']
+        self.truncation_radius_AU  = header.attrs['truncation_radius_AU']
+        if header.attrs['truncated_by_neighbor'] == 'True':
+            self.truncated_by_neighbor = True
+        else:
+            self.truncated_by_neighbor = False
+        self.disk_ids = f.get('disk_ids')[:]
+        f.close()
 
 class Snapshot:
     """
@@ -125,9 +145,9 @@ class Snapshot:
 
         # Header attributes.
         self.box_size = self.header.attrs['BoxSize']
-        self.num_p0 = self.header.attrs['NumPart_Total'][0]
-        self.num_p5 = self.header.attrs['NumPart_Total'][5]
-        self.t = self.header.attrs['Time']
+        self.num_p0   = self.header.attrs['NumPart_Total'][0]
+        self.num_p5   = self.header.attrs['NumPart_Total'][5]
+        self.t        = self.header.attrs['Time']
 
         # Unit conversions to cgs; note typo in header for G_code.
         self.G_code = self.header.attrs['Gravitational_Constant_In_Code_Inits']
@@ -915,7 +935,7 @@ class Snapshot:
             # Default to saving in snapshot directory.
             if diskdir is None:
                 diskdir = self.snapdir
-            fname_disk = os.path.join(diskdir, 'snapshot_{0:03d}_{1:s}.hdf5'.format(i, disk_name))
+            fname_disk = os.path.join(diskdir, 'snapshot_{0:03d}_{1:s}.hdf5'.format(self.get_i(), disk_name))
             if verbose:
                 print('Saving to {0:s}...'.format(fname_disk))
             f_disk = h5py.File(fname_disk, 'w')
@@ -938,8 +958,8 @@ class Snapshot:
             else:
                 header_disk.attrs.create('truncated_by_neighbor', 'False')
             header_disk.attrs.create('n_H_min', n_H_min)
-            header_disk.attrs.create('disk_mass', self.p0_mass[0] * len(disk_ids))
-            header_disk.attrs.create('disk_dm', self.p0_mass[0])
+            header_disk.attrs.create('disk_mass', self.p0_m[0] * len(disk_ids))
+            header_disk.attrs.create('disk_dm', self.p0_m[0])
             # Dataset of disk IDs.
             f_disk.create_dataset('disk_ids', data=np.asarray(disk_ids))
             f_disk.close()
