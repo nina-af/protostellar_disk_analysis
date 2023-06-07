@@ -834,6 +834,7 @@ class Snapshot:
             print('Initial r_max = {0:.1f} AU.'.format(r_max_AU))
         # Check that r_max is less than distance from center of mass to nearest non-disk sink particle.
         r_max_truncated_by_neighbor = False
+        r_max = r_max_code
         if self.num_p5 > 1:
             if verbose:
                 print('Checking for nearby sinks within {0:.1f} AU...'.format(r_max_AU))
