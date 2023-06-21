@@ -117,6 +117,37 @@ class Disk:
         self.disk_ids = f.get('disk_ids')[:]
         f.close()
 
+class Disk_USE_IDX:
+    """
+    Use array indices, not particle IDs, if IDs are not unique.
+    """
+
+    def __init__(self, fname):
+
+        # Read from saved HDF5 file.
+        f      = h5py.File(fname, 'r')
+        header = f['header']
+
+        self.snapshot     = header.attrs['snapshot']
+        self.snapdir      = header.attrs['snapdir']
+        self.disk_type    = header.attrs['disk_type']
+        self.disk_name    = header.attrs['disk_name']
+        self.primary_sink = header.attrs['primary_sink']
+        self.sink_ids     = header.attrs['sink_ids']
+        self.num_sinks    = header.attrs['num_sinks']
+        self.num_gas      = header.attrs['num_gas']
+        self.n_H_min      = header.attrs['n_H_min']
+        self.disk_dm      = header.attrs['disk_dm']
+        self.disk_mass    = header.attrs['disk_mass']
+        self.truncation_radius_AU  = header.attrs['truncation_radius_AU']
+        if header.attrs['truncated_by_neighbor'] == 'True':
+            self.truncated_by_neighbor = True
+        else:
+            self.truncated_by_neighbor = False
+        self.disk_ids = f.get('disk_ids')[:]
+        self.disk_idx = f.get('disk_idx')[:]
+        f.close()
+
 class Snapshot:
     """
     Class for reading gas/sink particle data from HDF5 snapshot files.
@@ -289,6 +320,28 @@ class Snapshot:
         cm_v = np.asarray([u_cm, v_cm, w_cm])
 
         return M, cm_x, cm_v
+    def _get_center_of_mass_USE_IDX(self, p_type, p_idx):
+        if p_type == 'PartType0':
+            m, M    = self.p0_m[p_idx], np.sum(self.p0_m[p_idx])
+            x, y, z = self.p0_x[p_idx], self.p0_y[p_idx], self.p0_z[p_idx]
+            u, v, w = self.p0_u[p_idx], self.p0_v[p_idx], self.p0_w[p_idx]
+        elif p_type == 'PartType5':
+            if self.num_p5 == 0:
+                return None
+            m, M    = self.p5_m[p_idx], np.sum(self.p5_m[p_idx])
+            x, y, z = self.p5_x[p_idx], self.p5_y[p_idx], self.p5_z[p_idx]
+            u, v, w = self.p5_u[p_idx], self.p5_v[p_idx], self.p5_w[p_idx]
+        else:
+            return None
+
+        x_cm = np.sum(np.multiply(m, x))/M; u_cm = np.sum(np.multiply(m, u))/M
+        y_cm = np.sum(np.multiply(m, y))/M; v_cm = np.sum(np.multiply(m, v))/M
+        z_cm = np.sum(np.multiply(m, z))/M; w_cm = np.sum(np.multiply(m, w))/M
+
+        cm_x = np.asarray([x_cm, y_cm, z_cm])
+        cm_v = np.asarray([u_cm, v_cm, w_cm])
+
+        return M, cm_x, cm_v
 
     def _two_body_center_of_mass(self, m1, x1, v1, m2, x2, v2):
         """
@@ -327,6 +380,9 @@ class Snapshot:
         """
         M, cm_x, cm_v = self._get_center_of_mass('PartType0', gas_ids)
         return M, cm_x, cm_v
+    def gas_center_of_mass_USE_IDX(self, gas_idx):
+        M, cm_x, cm_v = self._get_center_of_mass_USE_IDX('PartType0', gas_idx)
+        return M, cm_x, cm_v
 
     # Get center of mass of (subset of) sink particles.
     def sink_center_of_mass(self, sink_ids):
@@ -360,6 +416,11 @@ class Snapshot:
             - cm_v: sink + gas center of mass velocity (array)
         """
         M1, x1, v1 = self.gas_center_of_mass(gas_ids)
+        M2, x2, v2 = self.sink_center_of_mass(sink_ids)
+        M, cm_x, cm_v = self._two_body_center_of_mass(M1, x1, v1, M2, x2, v2)
+        return M, cm_x, cm_v
+    def system_center_of_mass_USE_IDX(self, gas_idx, sink_ids):
+        M1, x1, v1 = self.gas_center_of_mass_USE_IDX(gas_idx)
         M2, x2, v2 = self.sink_center_of_mass(sink_ids)
         M, cm_x, cm_v = self._two_body_center_of_mass(M1, x1, v1, M2, x2, v2)
         return M, cm_x, cm_v
@@ -397,6 +458,23 @@ class Snapshot:
         else:
             return None
         if np.isscalar(p_ids):
+            return m, np.asarray([x, y, z]), np.asarray([u, v, w])
+        else:
+            return m, np.vstack((x, y, z)).T, np.vstack((u, v, w)).T
+    def _get_particle_kinematics_USE_IDX(self, p_type, p_idx):
+        if p_type == 'PartType0':
+            m       = self.p0_m[p_idx]
+            x, y, z = self.p0_x[p_idx], self.p0_y[p_idx], self.p0_z[p_idx]
+            u, v, w = self.p0_u[p_idx], self.p0_v[p_idx], self.p0_w[p_idx]
+        elif p_type == 'PartType5':
+            if self.num_p5 == 0:
+                return None
+            m       = self.p5_m[p_idx]
+            x, y, z = self.p5_x[p_idx], self.p5_y[p_idx], self.p5_z[p_idx]
+            u, v, w = self.p5_u[p_idx], self.p5_v[p_idx], self.p5_w[p_idx]
+        else:
+            return None
+        if np.isscalar(p_idx):
             return m, np.asarray([x, y, z]), np.asarray([u, v, w])
         else:
             return m, np.vstack((x, y, z)).T, np.vstack((u, v, w)).T
@@ -444,6 +522,23 @@ class Snapshot:
             return m, np.asarray([x, y, z]), np.asarray([u, v, w])
         else:
             return m, np.vstack((x, y, z)).T, np.vstack((u, v, w)).T
+    def _get_particle_relative_kinematics_USE_IDX(self, p_type, p_idx, point_x, point_v):
+        x0, y0, z0 = point_x[0], point_x[1], point_x[2]
+        u0, v0, w0 = point_v[0], point_v[1], point_v[2]
+        if p_type == 'PartType0':
+            m       = self.p0_m[p_idx]
+            x, y, z = self.p0_x[p_idx] - x0, self.p0_y[p_idx] - y0, self.p0_z[p_idx] - z0
+            u, v, w = self.p0_u[p_idx] - u0, self.p0_v[p_idx] - v0, self.p0_w[p_idx] - w0
+        elif p_type == 'PartType5':
+            m       = self.p5_m[p_idx]
+            x, y, z = self.p5_x[p_idx] - x0, self.p5_y[p_idx] - y0, self.p5_z[p_idx] - z0
+            u, v, w = self.p5_u[p_idx] - u0, self.p5_v[p_idx] - v0, self.p5_w[p_idx] - w0
+        else:
+            return None
+        if np.isscalar(p_idx):
+            return m, np.asarray([x, y, z]), np.asarray([u, v, w])
+        else:
+            return m, np.vstack((x, y, z)).T, np.vstack((u, v, w)).T
 
     # Get gas particle mass, position, velocity.
     def get_gas_kinematics(self, gas_ids):
@@ -457,6 +552,10 @@ class Snapshot:
             - v: velocities of specified gas particles (3D array)
         """
         m, x, v = self._get_particle_kinematics('PartType0', gas_ids)
+        return m, x, v
+        # Get gas particle mass, position, velocity.
+    def get_gas_kinematics_USE_IDX(self, gas_idx):
+        m, x, v = self._get_particle_kinematics_USE_IDX('PartType0', gas_idx)
         return m, x, v
 
     # Get gas particle mass, position, velocity relative to x0, v0.
@@ -476,6 +575,9 @@ class Snapshot:
             - v: relative velocities of specified gas particles (3D array)
         """
         m, x, v = self._get_particle_relative_kinematics('PartType0', gas_ids, x0, v0)
+        return m, x, v
+    def get_gas_relative_kinematics_USE_IDX(self, gas_idx, x0, v0):
+        m, x, v = self._get_particle_relative_kinematics_USE_IDX('PartType0', gas_idx, x0, v0)
         return m, x, v
 
     # Get sink particle mass, position, velocity.
@@ -670,6 +772,22 @@ class Snapshot:
         r_sort   = r[idx_sort]
         ids_sort = ids_p[idx_sort]
         return r_sort, ids_sort, idx_sort
+    def _sort_particles_by_distance_to_point_USE_IDX(self, p_type, p_idx, point):
+        x0, y0, z0 = point[0], point[1], point[2]
+        if p_type == 'PartType0':
+            x1, y1, z1 = self.p0_x[p_idx], self.p0_y[p_idx], self.p0_z[p_idx]
+        elif p_type == 'PartType5':
+            if self.num_p5 == 0:
+                return None
+            x1, y1, z1 = self.p5_x[p_idx], self.p5_y[p_idx], self.p5_z[p_idx]
+        else:
+            return None
+        x, y, z    = x1 - x0, y1 - y0, z1 - z0
+        r          = np.sqrt(x**2 + y**2 + z**2)
+        idx_sort   = np.argsort(r)
+        r_sort     = r[idx_sort]
+        p_idx_sort = p_idx[idx_sort]
+        return r_sort, p_idx_sort
 
     # Sort gas particles by distance to point (x, y, z).
     def sort_gas_by_distance_to_point(self, gas_ids, point):
@@ -689,6 +807,9 @@ class Snapshot:
         """
         r, ids, idx = self._sort_particles_by_distance_to_point('PartType0', gas_ids, point)
         return r, ids, idx
+    def sort_gas_by_distance_to_point_USE_IDX(self, gas_idx, point):
+        r_sort, gas_idx_sort = self._sort_particles_by_distance_to_point_USE_IDX('PartType0', gas_idx, point)
+        return r_sort, gas_idx_sort
 
     # Sort sink particles by distance to point (x, y, z).
     def sort_sinks_by_distance_to_point(self, sink_ids, point):
@@ -731,6 +852,12 @@ class Snapshot:
         ms, xs, vs  = self.get_sink_kinematics(sink_id)
         r, ids, idx = self._sort_particles_by_distance_to_point('PartType0', gas_ids, xs)
         return r, ids, idx
+    def sort_gas_by_distance_to_sink_USE_IDX(self, gas_idx, sink_id):
+        if self.num_p5 == 0:
+            return None
+        ms, xs, vs  = self.get_sink_kinematics(sink_id)
+        r_sort, gas_idx_sort = self._sort_particles_by_distance_to_point_USE_IDX('PartType0', gas_idx, xs)
+        return r_sort, gas_idx_sort
 
     # Sort specified sink particles by distance to primary sink particle.
     def sort_sinks_by_distance_to_sink(self, sink_ids, primary_sink_id):
@@ -763,6 +890,13 @@ class Snapshot:
     def get_net_ang_mom(self, gas_ids, sink_id):
         m_cm, x_cm, v_cm = self.system_center_of_mass(gas_ids, sink_id)
         m_g, x_g, v_g    = self.get_gas_relative_kinematics(gas_ids, x_cm, v_cm)
+        ang_mom_vec      = np.sum(np.cross(x_g, v_g), axis=0)
+        ang_mom_mag      = np.linalg.norm(ang_mom_vec)
+        ang_mom_unit_vec = ang_mom_vec / ang_mom_mag
+        return ang_mom_unit_vec
+    def get_net_ang_mom_USE_IDX(self, gas_idx, sink_id):
+        m_cm, x_cm, v_cm = self.system_center_of_mass_USE_IDX(gas_idx, sink_id)
+        m_g, x_g, v_g    = self.get_gas_relative_kinematics_USE_IDX(gas_idx, x_cm, v_cm)
         ang_mom_vec      = np.sum(np.cross(x_g, v_g), axis=0)
         ang_mom_mag      = np.linalg.norm(ang_mom_vec)
         ang_mom_unit_vec = ang_mom_vec / ang_mom_mag
@@ -872,15 +1006,6 @@ class Snapshot:
         ids_in_sphere = ids_sort[:r_max_idx]
         mask_r_max    = np.isin(self.p0_ids, ids_in_sphere)
         mask_r_max    = np.logical_and(mask_init, mask_r_max)
-
-
-        #r_max_idx  = np.argmax(r_sort > r_max)
-        #mask_r_max = np.full(len(gas_ids), True, dtype=bool)
-        #mask_r_max[idx_sort[r_max_idx:]] = False
-        #mask_r_max = np.logical_and(mask_init, mask_r_max)
-
-
-
         if verbose:
             print('...size(mask_r_max) = {0:d}'.format(np.sum(mask_r_max)))
         # IDs of gas particles within sphere of radius r_max.
@@ -976,6 +1101,174 @@ class Snapshot:
             f_disk.create_dataset('disk_ids', data=np.asarray(disk_ids))
             f_disk.close()
         return disk_ids
+
+    # USE_IDX if particle IDs are not unique..
+    def get_disk_USE_IDX(self, sink_ids, gas_idx, r_max_AU=500.0, n_H_min=1e9, verbose=False,
+                         disk_name='', save_disk=False, diskdir=None):
+        is_single_disk    = True
+        num_sinks_in_disk = 1
+        # Getting disk around single sink particle?
+        if np.isscalar(sink_ids):
+            primary_sink = sink_ids
+            if disk_name == '':
+                disk_name = 'disk_single_{0:d}'.format(sink_ids)
+            if verbose:
+                print('Getting single disk (IDX version; sink ID {0:d})...'.format(sink_ids))
+        # Getting disk around multiple sink particles? Label by most massive sink.
+        else:
+            is_single_disk    = False
+            sink_ids_mask     = np.isin(self.p5_ids, sink_ids)
+            sink_masses       = self.p5_m[sink_ids_mask]
+            sink_ids_in_disk  = self.p5_ids[sink_ids_mask]
+            num_sinks_in_disk = len(sink_masses)
+            primary_sink      = sink_ids_in_disk[np.argmax(sink_masses)]
+            if disk_name == '':
+                disk_name         = 'disk_multi_{0:d}_{1:d}'.format(num_sinks_in_disk, primary_sink)
+            if verbose:
+                print('Getting multiple disk (IDX version; primary sink ID {0:d}; {1:d} sinks total)...'.format(primary_sink, num_sinks_in_disk))
+        # Sink system center of mass, position, velocity.
+        m, sink_x, sink_v = self.sink_center_of_mass(sink_ids)
+        # Convert r_max to cgs and code units.
+        r_max_cgs  = r_max_AU / self.cm_to_AU
+        r_max_code = r_max_cgs / self.l_unit
+        if verbose:
+            print('Initial r_max = {0:.1f} AU.'.format(r_max_AU))
+        # Check that r_max is less than distance from center of mass to nearest non-disk sink particle.
+        r_max_truncated_by_neighbor = False
+        r_max = r_max_code
+        if self.num_p5 > 1:
+            if verbose:
+                print('Checking for nearby sinks within {0:.1f} AU...'.format(r_max_AU))
+            if is_single_disk:
+                r, ids, idx = self.sort_sinks_by_distance_to_sink(self.p5_ids, primary_sink)
+            else:
+                other_sink_ids = self.p5_ids[np.isin(self.p5_ids, sink_ids, invert=True)]
+                if len(other_sink_ids) == 0:
+                    r = np.asarray([10.0*r_max_code])
+                else:
+                    # Sort other sinks by distance to sink system center of mass.
+                    r, ids, idx = self.sort_sinks_by_distance_to_point(other_sink_ids, sink_x)
+            # Minimum distance to non-disk sink particles [code units].
+            r_near_code = r[0]
+            r_near_cgs  = r_near_code * self.l_unit
+            r_near_AU   = r_near_cgs * self.cm_to_AU
+            if verbose:
+                print('Found nearest sink at r = {0:.1f} AU.'.format(r_near_AU))
+            if r_max_code < r_near_code:
+                r_max = r_max_code
+                if verbose:
+                    print('Keeping r_max = {0:.1f} AU.'.format(r_max_AU))
+            else:
+                r_max = r_near_code
+                if verbose:
+                    r_max_truncated_by_neighbor = True
+                    print('Updating r_max = {0:.1f} AU.'.format(r_near_AU))
+        r_sort, gas_idx_sort = self.sort_gas_by_distance_to_point_USE_IDX(gas_idx, sink_x)
+        # Mask over g_idx to exclude gas particles beyond r_max from consideration.
+        r_max_idx       = np.argmax(r_sort > r_max)
+        idx_in_sphere   = gas_idx_sort[:r_max_idx]
+        mask_r_max      = np.isin(gas_idx, idx_in_sphere)
+        g_idx_in_sphere = gas_idx[mask_r_max]
+        if verbose:
+            print('...size(mask_r_max) = {0:d}'.format(np.sum(mask_r_max)))
+        # Transform to sink-centered coordinate system; z axis parallel to net ang. momentum.
+        if verbose:
+            print('Transforming to sink-centered disk coordinate system...')
+        # Get angular momentum vector from all gas particles within r_max AU of sink particles.
+        L_unit_vec   = self.get_net_ang_mom_USE_IDX(g_idx_in_sphere, sink_ids)
+        # Define rotation matrix for coordinate system transformation.
+        x_vec, y_vec = self._get_orthogonal_vectors(L_unit_vec)
+        A            = self._get_rotation_matrix(x_vec, y_vec, L_unit_vec)
+        # Original coordinates (within r_max AU sphere); array shape = (N, 3).
+        x_orig = self.p0['Coordinates'][:][g_idx_in_sphere]
+        v_orig = self.p0['Velocities'][:][g_idx_in_sphere]
+        # Number density, density, pressure of particles in r_max sphere.
+        n_H = self.p0_n_H[g_idx_in_sphere]
+        rho = self.p0_rho[g_idx_in_sphere]
+        P   = self.p0_P[g_idx_in_sphere]
+        # Coordinates relative to sink particle coordiantes; array shape = (N, 3).
+        x_centered = x_orig - sink_x.T
+        v_centered = v_orig - sink_v.T
+        # Rotated to angular momentum frame; array shape = (3, N).
+        x_rot = np.matmul(A, x_centered.T)
+        v_rot = np.matmul(A, v_centered.T)
+        # Cartesian coordinate system.
+        x, y, z = x_rot[0, :], x_rot[1, :], x_rot[2, :]
+        u, v, w = v_rot[0, :], v_rot[1, :], v_rot[2, :]
+        # Cylindrical coordinate system.
+        r   = np.sqrt(x**2 + y**2)
+        phi = np.arctan(np.divide(y, x))
+        # Radial/azimuthal/z-velocity for disk membership checks.
+        v_r   = np.divide(np.multiply(x, u) + np.multiply(y, v), r)
+        v_phi = np.divide((np.multiply(x, v) - np.multiply(y, u)), r)
+        v_z   = w
+        if verbose:
+            print('Checking rotational support (v_phi > 2 * v_r)...')
+        # Gas is rotationally supported?
+        is_rotating       = np.greater(np.abs(v_phi), 2.0 * np.abs(v_r))
+        if verbose:
+            print('...found {0:d} particles.'.format(np.sum(is_rotating)))
+            print('Checking hydrostatic equilibrium (v_phi > 2 * v_z)...')
+        # Gas is in hydrostatic equilibrium?
+        is_hydrostatic       = np.greater(np.abs(v_phi), 2.0 * np.abs(v_z))
+        if verbose:
+            print('...found {0:d} particles.'.format(np.sum(is_hydrostatic)))
+            print('Checking if rotational support exceeds thermal pressure support...')
+        # Rotational support is greater than thermal pressure support?
+        is_rotationally_supported = np.greater(0.5 * np.multiply(rho * self.rho_unit,
+                                                                (v_phi * self.v_unit)**2),
+                                               2.0 * P * self.P_unit)
+        if verbose:
+            print('...found {0:d} particles.'.format(np.sum(is_rotationally_supported)))
+            print('Checking density threshold (n_H > {0:.1g} cm^-3)...'.format(n_H_min))
+        # Satisfies density threshold?
+        is_dense = np.greater(n_H, n_H_min)  # Can experiment with density threshold.
+        # Combined boolean mask.
+        mask_all = np.logical_and(np.logical_and(np.logical_and(is_dense, is_rotating), is_hydrostatic),
+                                  is_rotationally_supported)
+        g_idx_all = g_idx_in_sphere[mask_all]
+        if verbose:
+            print('...found {0:d} particles.'.format(np.sum(is_dense)))
+            print('Number of particles satisfying all checks: {0:d}'.format(np.sum(mask_all)))
+        disk_ids = self.p0_ids[g_idx_all]
+        disk_idx = g_idx_all
+        # Save disk IDs and relevant disk identification parameters to HDF5 file.
+        if save_disk:
+            # Default to saving in snapshot directory.
+            if diskdir is None:
+                diskdir = self.snapdir
+            fname_disk = os.path.join(diskdir, 'snapshot_{0:03d}_{1:s}.hdf5'.format(self.get_i(), disk_name))
+            if verbose:
+                print('Saving to {0:s}...'.format(fname_disk))
+            f_disk = h5py.File(fname_disk, 'w')
+            # Header.
+            header_disk = f_disk.create_dataset('header', (1,))
+            header_disk.attrs.create('snapshot', self.get_i())
+            header_disk.attrs.create('snapdir', self.snapdir)
+            if is_single_disk:
+                header_disk.attrs.create('disk_type', 'single')  # Single disk.
+            else:
+                header_disk.attrs.create('disk_type', 'multiple')  # Multiple disk.
+            header_disk.attrs.create('disk_name', disk_name)
+            header_disk.attrs.create('primary_sink', primary_sink)
+            header_disk.attrs.create('sink_ids', sink_ids)
+            header_disk.attrs.create('num_sinks', num_sinks_in_disk)
+            header_disk.attrs.create('num_gas', len(disk_ids))
+            header_disk.attrs.create('sink_ids', np.asarray(sink_ids))
+            header_disk.attrs.create('truncation_radius_AU', r_max * self.l_unit * self.cm_to_AU)
+            if r_max_truncated_by_neighbor:
+                header_disk.attrs.create('truncated_by_neighbor', 'True')
+            else:
+                header_disk.attrs.create('truncated_by_neighbor', 'False')
+            header_disk.attrs.create('n_H_min', n_H_min)
+            header_disk.attrs.create('disk_mass', self.p0_m[0] * len(disk_ids))
+            header_disk.attrs.create('disk_dm', self.p0_m[0])
+            # Dataset of disk IDs.
+            f_disk.create_dataset('disk_ids', data=np.asarray(disk_ids))
+            # Dataset of disk idxs.
+            f_disk.create_dataset('disk_idx', data=np.asarray(disk_idx))
+            f_disk.close()
+        return disk_ids, disk_idx
 
     # Utility functions.
     def weight_avg(self, data, weights):
