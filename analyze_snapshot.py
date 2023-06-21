@@ -103,6 +103,7 @@ class Disk:
         self.disk_type    = header.attrs['disk_type']
         self.disk_name    = header.attrs['disk_name']
         self.primary_sink = header.attrs['primary_sink']
+        self.sink_ids     = header.attrs['sink_ids']
         self.num_sinks    = header.attrs['num_sinks']
         self.num_gas      = header.attrs['num_gas']
         self.n_H_min      = header.attrs['n_H_min']
@@ -959,6 +960,7 @@ class Snapshot:
                 header_disk.attrs.create('disk_type', 'multiple')  # Multiple disk.
             header_disk.attrs.create('disk_name', disk_name)
             header_disk.attrs.create('primary_sink', primary_sink)
+            header_disk.attrs.create('sink_ids', sink_ids)
             header_disk.attrs.create('num_sinks', num_sinks_in_disk)
             header_disk.attrs.create('num_gas', len(disk_ids))
             header_disk.attrs.create('sink_ids', np.asarray(sink_ids))
