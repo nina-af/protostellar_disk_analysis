@@ -174,7 +174,7 @@ def plot_density_proj(s, verbose=False, **kwargs):
         plt.show()
 
 # Make projection plots of two models side-by-side.
-def plot_density_proj_disk(s, sink_id, disk_ids, verbose=False, **kwargs):
+def plot_density_proj_disk(s, disk_name, disk_ids, verbose=False, **kwargs):
 
     # Specify default plotting values: zoom, zmin, zmax, min_size, max_size, mass_step.
     if kwargs['zoom'] is None:
@@ -213,10 +213,10 @@ def plot_density_proj_disk(s, sink_id, disk_ids, verbose=False, **kwargs):
         return filter
 
     yt.add_particle_filter(
-        'disk_{0:d}'.format(sink_id), function=disk, filtered_type='PartType0', requires=['ParticleIDs']
+        'disk_{0:s}'.format(disk_name), function=disk, filtered_type='PartType0', requires=['ParticleIDs']
     )
 
-    ds     = yt.load(s.fname, unit_base=unit_base); ds.add_particle_filter('disk_{0:d}'.format(sink_id))
+    ds     = yt.load(s.fname, unit_base=unit_base); ds.add_particle_filter('disk_{0:s}'.format(disk_name))
     ad = ds.all_data(); plot_particles = False
     t_myrs = np.asarray(ds.current_time) * s.t_unit_myr
 
@@ -235,6 +235,7 @@ def plot_density_proj_disk(s, sink_id, disk_ids, verbose=False, **kwargs):
             c = ds.arr(kwargs['center_coordinates'], 'code_length')
     elif kwargs['set_center'] == 'sink_center':
         if kwargs['center_sink_ids'] is None:
+            # NEED TO UPDATE - no sink_id.
             m, cm_x, cm_v = s.sink_center_of_mass(sink_id)
         else:
             m, cm_x, cm_v = s.sink_center_of_mass(kwargs['center_sink_ids'])
@@ -255,7 +256,7 @@ def plot_density_proj_disk(s, sink_id, disk_ids, verbose=False, **kwargs):
         box        = ds.region(c, left_edge, right_edge, fields=[('gas', 'density')], ds=ds)
 
     field_1 = [('gas', 'density')]
-    field_2 = [('disk_{0:d}'.format(sink_id), 'Density')]
+    field_2 = [('disk_{0:s}'.format(disk_name), 'Density')]
     dirs    = ['x', 'y', 'z']
     title   = ['', 'L [AU]', '']
     zlabel  = "Projected Density (g cm$^{-2}$)"
@@ -334,7 +335,7 @@ def plot_density_proj_disk(s, sink_id, disk_ids, verbose=False, **kwargs):
 
     if kwargs['save_fig']:
         current_i = s.get_i()
-        fname_out = os.path.join(kwargs['projdir'], 'zoom_{0:d}_proj_disk_{1:d}_snapshot_{2:03d}.png'.format(zoom, sink_id, current_i))
+        fname_out = os.path.join(kwargs['projdir'], 'zoom_{0:d}_proj_disk_{1:s}_snapshot_{2:03d}.png'.format(zoom, disk_name, current_i))
         plt.savefig(fname_out, bbox_inches='tight', facecolor='white', edgecolor='white')
         plt.close(fig)
     else:
