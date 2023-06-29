@@ -117,6 +117,10 @@ class Disk:
         self.disk_ids = f.get('disk_ids')[:]
         f.close()
 
+    def get_snapshot(self):
+        fname_snap = os.path.join(self.snapdir, 'snapshot_{0:03d}.hdf5'.format(self.snapshot))
+        return Snapshot(fname_snap)
+
 class Disk_USE_IDX:
     """
     Use array indices, not particle IDs, if IDs are not unique.
@@ -147,6 +151,10 @@ class Disk_USE_IDX:
         self.disk_ids = f.get('disk_ids')[:]
         self.disk_idx = f.get('disk_idx')[:]
         f.close()
+
+    def get_snapshot(self):
+        fname_snap = os.path.join(self.snapdir, 'snapshot_{0:03d}.hdf5'.format(self.snapshot))
+        return Snapshot(fname_snap)
 
 class Snapshot:
     """
@@ -918,7 +926,7 @@ class Snapshot:
 
     # Identify gas particles in gas_ids belonging to disk around sink_ids.
     def get_disk(self, sink_ids, gas_ids, r_max_AU=500.0, n_H_min=1e9, verbose=False,
-                 disk_name='', save_disk=False, diskdir=None):
+                 disk_name='', save_disk=False, diskdir=None, get_L_vec=False):
         """
         Identifies subset of specified gas particles belonging to disk
         around specified sink particles based upon the following checks:
@@ -1014,7 +1022,7 @@ class Snapshot:
         if verbose:
             print('Transforming to sink-centered disk coordinate system...')
         # Get angular momentum vector from all gas particles within r_max AU of sink particles.
-        L_unit_vec   = self.get_net_ang_mom(g_ids_in_sphere, sink_ids)
+        L_unit_vec, L_mag = self.get_net_ang_mom(g_ids_in_sphere, sink_ids)
         # Define rotation matrix for coordinate system transformation.
         x_vec, y_vec = self._get_orthogonal_vectors(L_unit_vec)
         A            = self._get_rotation_matrix(x_vec, y_vec, L_unit_vec)
@@ -1100,6 +1108,7 @@ class Snapshot:
             # Dataset of disk IDs.
             f_disk.create_dataset('disk_ids', data=np.asarray(disk_ids))
             f_disk.close()
+
         return disk_ids
 
     # USE_IDX if particle IDs are not unique..
@@ -1175,7 +1184,7 @@ class Snapshot:
         if verbose:
             print('Transforming to sink-centered disk coordinate system...')
         # Get angular momentum vector from all gas particles within r_max AU of sink particles.
-        L_unit_vec   = self.get_net_ang_mom_USE_IDX(g_idx_in_sphere, sink_ids)
+        L_unit_vec, L_mag = self.get_net_ang_mom_USE_IDX(g_idx_in_sphere, sink_ids)
         # Define rotation matrix for coordinate system transformation.
         x_vec, y_vec = self._get_orthogonal_vectors(L_unit_vec)
         A            = self._get_rotation_matrix(x_vec, y_vec, L_unit_vec)
@@ -1268,7 +1277,8 @@ class Snapshot:
             # Dataset of disk idxs.
             f_disk.create_dataset('disk_idx', data=np.asarray(disk_idx))
             f_disk.close()
-        return disk_ids, disk_idx
+
+        return disk_idx
 
     # Utility functions.
     def weight_avg(self, data, weights):
