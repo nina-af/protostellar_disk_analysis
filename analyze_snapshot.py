@@ -98,6 +98,7 @@ class Disk:
         f      = h5py.File(fname, 'r')
         header = f['header']
 
+        self.fname        = fname
         self.snapshot     = header.attrs['snapshot']
         self.snapdir      = header.attrs['snapdir']
         self.disk_type    = header.attrs['disk_type']
@@ -117,9 +118,9 @@ class Disk:
         self.disk_ids = f.get('disk_ids')[:]
         f.close()
 
-    def get_snapshot(self):
+    def get_snapshot(self, cloud):
         fname_snap = os.path.join(self.snapdir, 'snapshot_{0:03d}.hdf5'.format(self.snapshot))
-        return Snapshot(fname_snap)
+        return Snapshot(fname_snap, cloud)
 
 class Disk_USE_IDX:
     """
@@ -132,6 +133,7 @@ class Disk_USE_IDX:
         f      = h5py.File(fname, 'r')
         header = f['header']
 
+        self.fname        = fname
         self.snapshot     = header.attrs['snapshot']
         self.snapdir      = header.attrs['snapdir']
         self.disk_type    = header.attrs['disk_type']
@@ -152,9 +154,9 @@ class Disk_USE_IDX:
         self.disk_idx = f.get('disk_idx')[:]
         f.close()
 
-    def get_snapshot(self):
+    def get_snapshot(self, cloud):
         fname_snap = os.path.join(self.snapdir, 'snapshot_{0:03d}.hdf5'.format(self.snapshot))
-        return Snapshot(fname_snap)
+        return Snapshot(fname_snap, cloud)
 
 class Snapshot:
     """
@@ -196,10 +198,12 @@ class Snapshot:
         self.m_unit = self.header.attrs['UnitMass_In_CGS']
         self.v_unit = self.header.attrs['UnitVelocity_In_CGS']
         self.B_unit = B_unit
-        self.t_unit     = self.l_unit / self.v_unit
-        self.t_unit_myr = self.t_unit / (3600.0 * 24.0 * 365.0 * 1e6)
-        self.rho_unit   = self.m_unit / self.l_unit**3
-        self.P_unit     = self.m_unit / self.l_unit / self.t_unit**2
+        self.t_unit      = self.l_unit / self.v_unit
+        self.t_unit_myr  = self.t_unit / (3600.0 * 24.0 * 365.0 * 1e6)
+        self.rho_unit    = self.m_unit / self.l_unit**3
+        self.P_unit      = self.m_unit / self.l_unit / self.t_unit**2
+        self.spec_L_unit = self.l_unit * self.v_unit       # Specific angular momentum (get_net_ang_mom).
+        self.L_unit      = self.spec_L_unit * self.m_unit  # Angular momentum.
 
         # Other useful conversion factors.
         self.cm_to_AU = 6.6845871226706e-14
@@ -270,6 +274,9 @@ class Snapshot:
             self.p5_u = self.p5['Velocities'][:, 0]
             self.p5_v = self.p5['Velocities'][:, 1]
             self.p5_w = self.p5['Velocities'][:, 2]
+
+            # Specific angular momentum.
+            self.p5_spec_ang_mom = self.p5['BH_Specific_AngMom']
 
             # Sink particle attributes.
             self.p5_sink_radius      = self.p5['SinkRadius'][:]
@@ -894,21 +901,28 @@ class Snapshot:
         r, ids, idx = self._sort_particles_by_distance_to_point('PartType5', ids_rest, xs)
         return r, ids, idx
 
-    # Get net angular momentum unit vector of sink + gas particles.
-    def get_net_ang_mom(self, gas_ids, sink_id):
-        m_cm, x_cm, v_cm = self.system_center_of_mass(gas_ids, sink_id)
+    # Get specific angular momentum of gas particles about center sink particle.
+    def get_net_ang_mom(self, gas_ids, sink_ids=None):
+        # Just use gas particles to get center of mass, angular momentum.
+        if sink_ids is None:
+            m_cm, x_cm, v_cm = self.gas_center_of_mass(gas_ids)
+        else:
+            m_cm, x_cm, v_cm = self.system_center_of_mass(gas_ids, sink_ids)
         m_g, x_g, v_g    = self.get_gas_relative_kinematics(gas_ids, x_cm, v_cm)
         ang_mom_vec      = np.sum(np.cross(x_g, v_g), axis=0)
         ang_mom_mag      = np.linalg.norm(ang_mom_vec)
         ang_mom_unit_vec = ang_mom_vec / ang_mom_mag
-        return ang_mom_unit_vec
-    def get_net_ang_mom_USE_IDX(self, gas_idx, sink_id):
-        m_cm, x_cm, v_cm = self.system_center_of_mass_USE_IDX(gas_idx, sink_id)
+        return ang_mom_unit_vec, ang_mom_mag
+    def get_net_ang_mom_USE_IDX(self, gas_idx, sink_ids=None):
+        if sink_ids is None:
+            m_cm, x_cm, v_cm = self.gas_center_of_mass_USE_IDX(gas_idx)
+        else:
+            m_cm, x_cm, v_cm = self.system_center_of_mass_USE_IDX(gas_idx, sink_ids)
         m_g, x_g, v_g    = self.get_gas_relative_kinematics_USE_IDX(gas_idx, x_cm, v_cm)
         ang_mom_vec      = np.sum(np.cross(x_g, v_g), axis=0)
         ang_mom_mag      = np.linalg.norm(ang_mom_vec)
         ang_mom_unit_vec = ang_mom_vec / ang_mom_mag
-        return ang_mom_unit_vec
+        return ang_mom_unit_vec, ang_mom_mag
 
     # Get orthogonal (x, y) unit vectors given vector z.
     def _get_orthogonal_vectors(self, z):
@@ -1022,7 +1036,7 @@ class Snapshot:
         if verbose:
             print('Transforming to sink-centered disk coordinate system...')
         # Get angular momentum vector from all gas particles within r_max AU of sink particles.
-        L_unit_vec, L_mag = self.get_net_ang_mom(g_ids_in_sphere, sink_ids)
+        L_unit_vec, L_mag = self.get_net_ang_mom(g_ids_in_sphere, sink_ids=sink_ids)
         # Define rotation matrix for coordinate system transformation.
         x_vec, y_vec = self._get_orthogonal_vectors(L_unit_vec)
         A            = self._get_rotation_matrix(x_vec, y_vec, L_unit_vec)
@@ -1184,7 +1198,7 @@ class Snapshot:
         if verbose:
             print('Transforming to sink-centered disk coordinate system...')
         # Get angular momentum vector from all gas particles within r_max AU of sink particles.
-        L_unit_vec, L_mag = self.get_net_ang_mom_USE_IDX(g_idx_in_sphere, sink_ids)
+        L_unit_vec, L_mag = self.get_net_ang_mom_USE_IDX(g_idx_in_sphere, sink_ids=sink_ids)
         # Define rotation matrix for coordinate system transformation.
         x_vec, y_vec = self._get_orthogonal_vectors(L_unit_vec)
         A            = self._get_rotation_matrix(x_vec, y_vec, L_unit_vec)
