@@ -276,7 +276,9 @@ class Snapshot:
             self.p5_w = self.p5['Velocities'][:, 2]
 
             # Specific angular momentum.
-            self.p5_spec_ang_mom = self.p5['BH_Specific_AngMom']
+            self.p5_lx = self.p5['BH_Specific_AngMom'][:, 0]
+            self.p5_ly = self.p5['BH_Specific_AngMom'][:, 1]
+            self.p5_lz = self.p5['BH_Specific_AngMom'][:, 2]
 
             # Sink particle attributes.
             self.p5_sink_radius      = self.p5['SinkRadius'][:]
