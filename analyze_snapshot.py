@@ -136,6 +136,7 @@ class Disk:
 
         # Disk particle attributes from parent snapshot.
         self.idx_d = np.isin(self.Snapshot.p0_ids, self.disk_ids)
+        self.m     = self.Snapshot.p0_m[self.idx_d]      # Mass [code].
         self.x     = self.Snapshot.p0_x[self.idx_d]      # Coordinates [code].
         self.y     = self.Snapshot.p0_y[self.idx_d]
         self.z     = self.Snapshot.p0_z[self.idx_d]
