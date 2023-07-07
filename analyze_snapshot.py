@@ -101,8 +101,8 @@ class Disk:
         self.fname        = fname
         self.cloud        = cloud
         self.snapshot     = header.attrs['snapshot']       # Snapshot number.
+        self.snapdir      = header.attrs['snapdir']        # Snapshot data directory.
         self.Snapshot     = self.get_snapshot(self.cloud)  # Snapshot object.
-        self.snapdir      = header.attrs['snapdir']
         self.disk_type    = header.attrs['disk_type']
         self.disk_name    = header.attrs['disk_name']
         self.primary_sink = header.attrs['primary_sink']
