@@ -131,8 +131,8 @@ class Disk:
         self.t_unit_myr  = self.Snapshot.t_unit_myr
         self.rho_unit    = self.Snapshot.rho_unit
         self.P_unit      = self.Snapshot.P_unit
-        self.spec_L_unit = self.spec_L_unit
-        self.L_unit      = self.L_unit
+        self.spec_L_unit = self.Snapshot.spec_L_unit
+        self.L_unit      = self.Snapshot.L_unit
 
         # Disk particle attributes from parent snapshot.
         self.idx_d = np.isin(self.Snapshot.p0_ids, self.disk_ids)
