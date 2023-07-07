@@ -92,14 +92,16 @@ class Disk:
     To-do: disk mass, radius, temperature, ionization fraction, etc.
     """
 
-    def __init__(self, fname):
+    def __init__(self, fname, cloud):
 
         # Read from saved HDF5 file.
         f      = h5py.File(fname, 'r')
         header = f['header']
 
         self.fname        = fname
-        self.snapshot     = header.attrs['snapshot']
+        self.cloud        = cloud
+        self.snapshot     = header.attrs['snapshot']       # Snapshot number.
+        self.Snapshot     = self.get_snapshot(self.cloud)  # Snapshot object.
         self.snapdir      = header.attrs['snapdir']
         self.disk_type    = header.attrs['disk_type']
         self.disk_name    = header.attrs['disk_name']
@@ -118,9 +120,32 @@ class Disk:
         self.disk_ids = f.get('disk_ids')[:]
         f.close()
 
+        # Disk particle attributes from snapshot.
+        self.idx_d = np.isin(self.Snapshot.p0_ids, self.disk_ids)
+        self.x     = self.Snapshot.p0_x[self.idx_d]      # Coordinates [code].
+        self.y     = self.Snapshot.p0_y[self.idx_d]
+        self.z     = self.Snapshot.p0_z[self.idx_d]
+        self.u     = self.Snapshot.p0_u[self.idx_d]      # Velocities [code].
+        self.v     = self.Snapshot.p0_v[self.idx_d]
+        self.w     = self.Snapshot.p0_w[self.idx_d]
+        self.Bx    = self.Snapshot.p0_Bx[self.idx_d]     # Magnetic field [code].
+        self.By    = self.Snapshot.p0_By[self.idx_d]
+        self.Bz    = self.Snapshot.p0_Bz[self.idx_d]
+        self.rho   = self.Snapshot.p0_rho[self.idx_d]    # Density [code].
+        self.P     = self.Snapshot.p0_P[self.idx_d]      # Pressure [code].
+        self.E_int = self.Snapshot.p0_E_int[self.idx_d]  # Internal energy.
+
+        self.n_H   = self.Snapshot.p0_n_H[self.idx_d]    # H number density [cm^-3].
+        self.n_He  = self.Snapshot.p0_n_He[self.idx_d]   # He number density [cm^-3].
+
+        self.electron_abundance = self.Snapshot.p0_electron_abundance[self.idx_d]
+        self.neutral_H_abundance = self.Snapshot.p0_neutral_H_abundance[self.idx_d]
+
+
     def get_snapshot(self, cloud):
         fname_snap = os.path.join(self.snapdir, 'snapshot_{0:03d}.hdf5'.format(self.snapshot))
         return Snapshot(fname_snap, cloud)
+
 
 class Disk_USE_IDX:
     """
