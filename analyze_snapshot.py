@@ -120,7 +120,21 @@ class Disk:
         self.disk_ids = f.get('disk_ids')[:]
         f.close()
 
-        # Disk particle attributes from snapshot.
+        # Unit conversions from parent snapshot.
+        self.G_code = self.Snapshot.G_code
+        self.B_code = self.Snapshot.B_code
+        self.l_unit = self.Snapshot.l_unit
+        self.m_unit = self.Snapshot.m_unit
+        self.v_unit = self.Snapshot.v_unit
+        self.B_unit = self.Snapshot.B_unit
+        self.t_unit      = self.Snapshot.t_unit
+        self.t_unit_myr  = self.Snapshot.t_unit_myr
+        self.rho_unit    = self.Snapshot.rho_unit
+        self.P_unit      = self.Snapshot.P_unit
+        self.spec_L_unit = self.spec_L_unit
+        self.L_unit      = self.L_unit
+
+        # Disk particle attributes from parent snapshot.
         self.idx_d = np.isin(self.Snapshot.p0_ids, self.disk_ids)
         self.x     = self.Snapshot.p0_x[self.idx_d]      # Coordinates [code].
         self.y     = self.Snapshot.p0_y[self.idx_d]
@@ -140,7 +154,6 @@ class Disk:
 
         self.electron_abundance = self.Snapshot.p0_electron_abundance[self.idx_d]
         self.neutral_H_abundance = self.Snapshot.p0_neutral_H_abundance[self.idx_d]
-
 
     def get_snapshot(self, cloud):
         fname_snap = os.path.join(self.snapdir, 'snapshot_{0:03d}.hdf5'.format(self.snapshot))
