@@ -133,6 +133,7 @@ class Disk:
         self.P_unit      = self.Snapshot.P_unit
         self.spec_L_unit = self.Snapshot.spec_L_unit
         self.L_unit      = self.Snapshot.L_unit
+        self.pc_to_au    = 206265.0
 
         # Disk particle attributes from parent snapshot.
         self.idx_d = np.isin(self.Snapshot.p0_ids, self.disk_ids)
@@ -155,6 +156,39 @@ class Disk:
 
         self.electron_abundance = self.Snapshot.p0_electron_abundance[self.idx_d]
         self.neutral_H_abundance = self.Snapshot.p0_neutral_H_abundance[self.idx_d]
+
+        # Disk + sink center-of-mass, angular momentum.
+        m_cm, x_cm, v_cm  = self.Snapshot.system_center_of_mass(self.disk_ids, self.sink_ids)
+        L_unit_vec, L_mag = self.Snapshot.get_net_ang_mom(self.disk_ids, self.sink_ids)
+        x_hat, y_hat      = self.Snapshot._get_orthogonal_vectors(L_unit_vec)
+
+        self.x_cm       = np.reshape(x_cm, (3, 1))
+        self.v_cm       = np.reshape(v_cm, (3, 1))
+        self.L_unit_vec = L_unit_vec
+        self.L_mag      = L_mag
+
+        # Rotation matrix to Cartesian coordinate frame with z || L_unit_vec.
+        self.A = self.Snapshot._get_rotation_matrix(x_hat, y_hat, L_unit_vec)
+
+        # Cartesian coordinates, velocities in system center-of-mass frame.
+        self.X_cm = np.matmul(self.A, np.vstack((self.x, self.y, self.z)) - self.x_cm)
+        self.V_cm = np.matmul(self.A, np.vstack((self.u, self.v, self.w)) - self.v_cm)
+
+        # Convert to cylindrical coordinates.
+        disk_r  = np.sqrt(self.X_cm[0, :]**2 + self.X_cm[1, :]**2)
+        disk_t  = np.degrees(np.arctan(np.divide(self.X_cm[1, :], self.X_cm[0, :])))
+        disk_vr = np.divide(np.multiply(self.V_cm[0, :], self.X_cm[0, :]) + \
+                            np.multiply(self.V_cm[1, :], self.X_cm[1, :]), disk_r)
+        disk_vt = np.divide(np.multiply(self.V_cm[1, :], self.X_cm[0, :]) - \
+                            np.multiply(self.V_cm[0, :], self.X_cm[1, :]), disk_r)
+
+        self.X_cyl = np.vstack((disk_r,  disk_t,  self.X_cm[2, :]))
+        self.V_cyl = np.vstack((disk_vr, disk_vt, self.V_cm[2, :]))
+
+        self.omega = np.divide((np.multiply(self.X_cm[0, :] * self.l_unit, self.V_cm[1, :] * self.v_unit) - \
+                                np.multiply(self.X_cm[1, :] * self.l_unit, self.V_cm[0, :] * self.v_unit)),
+                                (self.X_cm[0, :]**2 + self.X_cm[1, :]**2)* self.l_unit**2)
+
 
     def get_snapshot(self, cloud):
         fname_snap = os.path.join(self.snapdir, 'snapshot_{0:03d}.hdf5'.format(self.snapshot))
@@ -192,6 +226,75 @@ class Disk_USE_IDX:
         self.disk_ids = f.get('disk_ids')[:]
         self.disk_idx = f.get('disk_idx')[:]
         f.close()
+
+        # Unit conversions from parent snapshot.
+        self.G_code = self.Snapshot.G_code
+        self.B_code = self.Snapshot.B_code
+        self.l_unit = self.Snapshot.l_unit
+        self.m_unit = self.Snapshot.m_unit
+        self.v_unit = self.Snapshot.v_unit
+        self.B_unit = self.Snapshot.B_unit
+        self.t_unit      = self.Snapshot.t_unit
+        self.t_unit_myr  = self.Snapshot.t_unit_myr
+        self.rho_unit    = self.Snapshot.rho_unit
+        self.P_unit      = self.Snapshot.P_unit
+        self.spec_L_unit = self.Snapshot.spec_L_unit
+        self.L_unit      = self.Snapshot.L_unit
+        self.pc_to_au    = 206265.0
+
+        # Disk particle attributes from parent snapshot.
+        self.idx_d = self.disk_idx
+        self.m     = self.Snapshot.p0_m[self.idx_d]      # Mass [code].
+        self.x     = self.Snapshot.p0_x[self.idx_d]      # Coordinates [code].
+        self.y     = self.Snapshot.p0_y[self.idx_d]
+        self.z     = self.Snapshot.p0_z[self.idx_d]
+        self.u     = self.Snapshot.p0_u[self.idx_d]      # Velocities [code].
+        self.v     = self.Snapshot.p0_v[self.idx_d]
+        self.w     = self.Snapshot.p0_w[self.idx_d]
+        self.Bx    = self.Snapshot.p0_Bx[self.idx_d]     # Magnetic field [code].
+        self.By    = self.Snapshot.p0_By[self.idx_d]
+        self.Bz    = self.Snapshot.p0_Bz[self.idx_d]
+        self.rho   = self.Snapshot.p0_rho[self.idx_d]    # Density [code].
+        self.P     = self.Snapshot.p0_P[self.idx_d]      # Pressure [code].
+        self.E_int = self.Snapshot.p0_E_int[self.idx_d]  # Internal energy.
+
+        self.n_H   = self.Snapshot.p0_n_H[self.idx_d]    # H number density [cm^-3].
+        self.n_He  = self.Snapshot.p0_n_He[self.idx_d]   # He number density [cm^-3].
+
+        self.electron_abundance = self.Snapshot.p0_electron_abundance[self.idx_d]
+        self.neutral_H_abundance = self.Snapshot.p0_neutral_H_abundance[self.idx_d]
+
+        # Disk + sink center-of-mass, angular momentum.
+        m_cm, x_cm, v_cm  = self.Snapshot.system_center_of_mass(self.disk_ids, self.sink_ids)
+        L_unit_vec, L_mag = self.Snapshot.get_net_ang_mom(self.disk_ids, self.sink_ids)
+        x_hat, y_hat      = self.Snapshot._get_orthogonal_vectors(L_unit_vec)
+
+        self.x_cm       = np.reshape(x_cm, (3, 1))
+        self.v_cm       = np.reshape(v_cm, (3, 1))
+        self.L_unit_vec = L_unit_vec
+        self.L_mag      = L_mag
+
+        # Rotation matrix to Cartesian coordinate frame with z || L_unit_vec.
+        self.A = self.Snapshot._get_rotation_matrix(x_hat, y_hat, L_unit_vec)
+
+        # Cartesian coordinates, velocities in system center-of-mass frame.
+        self.X_cm = np.matmul(self.A, np.vstack((self.x, self.y, self.z)) - self.x_cm)
+        self.V_cm = np.matmul(self.A, np.vstack((self.u, self.v, self.w)) - self.v_cm)
+
+        # Convert to cylindrical coordinates.
+        disk_r  = np.sqrt(self.X_cm[0, :]**2 + self.X_cm[1, :]**2)
+        disk_t  = np.degrees(np.arctan(np.divide(self.X_cm[1, :], self.X_cm[0, :])))
+        disk_vr = np.divide(np.multiply(self.V_cm[0, :], self.X_cm[0, :]) + \
+                            np.multiply(self.V_cm[1, :], self.X_cm[1, :]), disk_r)
+        disk_vt = np.divide(np.multiply(self.V_cm[1, :], self.X_cm[0, :]) - \
+                            np.multiply(self.V_cm[0, :], self.X_cm[1, :]), disk_r)
+
+        self.X_cyl = np.vstack((disk_r,  disk_t,  self.X_cm[2, :]))
+        self.V_cyl = np.vstack((disk_vr, disk_vt, self.V_cm[2, :]))
+
+        self.omega = np.divide((np.multiply(self.X_cm[0, :] * self.l_unit, self.V_cm[1, :] * self.v_unit) - \
+                                np.multiply(self.X_cm[1, :] * self.l_unit, self.V_cm[0, :] * self.v_unit)),
+                                (self.X_cm[0, :]**2 + self.X_cm[1, :]**2)* self.l_unit**2)
 
     def get_snapshot(self, cloud):
         fname_snap = os.path.join(self.snapdir, 'snapshot_{0:03d}.hdf5'.format(self.snapshot))
