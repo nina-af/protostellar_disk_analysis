@@ -3,6 +3,7 @@
 import os
 import h5py
 import numpy as np
+from scipy import stats
 
 class Cloud:
     """
@@ -194,6 +195,18 @@ class Disk:
         fname_snap = os.path.join(self.snapdir, 'snapshot_{0:03d}.hdf5'.format(self.snapshot))
         return Snapshot(fname_snap, cloud)
 
+    def get_radial_profile(self, y_vals, num_bins=100):
+        # Convert radial distance to AU.
+        r_vals = self.X_cyl[0, :] * self.pc_to_au
+        # Sort by radial distance.
+        idx_sort       = np.argsort(r_vals)
+        r_vals, y_vals = r_vals[idx_sort], y_vals[idx_sort]
+        # Using equal-spaced bins.
+        y_mean, y_bin_edges, _ = stats.binned_statistic(r_vals, y_vals, statistic='mean', bins=num_bins)
+        # Bin centers.
+        x_vals = (y_bin_edges[:-1] + y_bin_edges[1:])/2
+        return x_vals, y_mean
+
 
 class Disk_USE_IDX:
     """
@@ -299,6 +312,18 @@ class Disk_USE_IDX:
     def get_snapshot(self, cloud):
         fname_snap = os.path.join(self.snapdir, 'snapshot_{0:03d}.hdf5'.format(self.snapshot))
         return Snapshot(fname_snap, cloud)
+
+    def get_radial_profile(self, y_vals, num_bins=100):
+        # Convert radial distance to AU.
+        r_vals = self.X_cyl[0, :] * self.pc_to_au
+        # Sort by radial distance.
+        idx_sort       = np.argsort(r_vals)
+        r_vals, y_vals = r_vals[idx_sort], y_vals[idx_sort]
+        # Using equal-spaced bins.
+        y_mean, y_bin_edges, _ = stats.binned_statistic(r_vals, y_vals, statistic='mean', bins=num_bins)
+        # Bin centers.
+        x_vals = (y_bin_edges[:-1] + y_bin_edges[1:])/2
+        return x_vals, y_mean
 
 class Snapshot:
     """
