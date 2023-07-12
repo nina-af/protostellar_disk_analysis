@@ -134,7 +134,10 @@ class Disk:
         self.P_unit      = self.Snapshot.P_unit
         self.spec_L_unit = self.Snapshot.spec_L_unit
         self.L_unit      = self.Snapshot.L_unit
+        self.E_unit      = self.Snapshot.E_unit
         self.pc_to_au    = 206265.0
+        self.m_p         = self.Snapshot.m_p   # proton mass [g]
+        self.k_boltz     = 1.3807e-16          # Boltzmann constant [cm^2 g s^-2 K-1].
 
         # Disk particle attributes from parent snapshot.
         self.idx_d = np.isin(self.Snapshot.p0_ids, self.disk_ids)
@@ -148,12 +151,17 @@ class Disk:
         self.Bx    = self.Snapshot.p0_Bx[self.idx_d]     # Magnetic field [code].
         self.By    = self.Snapshot.p0_By[self.idx_d]
         self.Bz    = self.Snapshot.p0_Bz[self.idx_d]
+        self.B_mag = np.sqrt(self.Bx**2 + self.By**2 + self.Bz**2)
         self.rho   = self.Snapshot.p0_rho[self.idx_d]    # Density [code].
         self.P     = self.Snapshot.p0_P[self.idx_d]      # Pressure [code].
         self.E_int = self.Snapshot.p0_E_int[self.idx_d]  # Internal energy.
 
         self.n_H   = self.Snapshot.p0_n_H[self.idx_d]    # H number density [cm^-3].
         self.n_He  = self.Snapshot.p0_n_He[self.idx_d]   # He number density [cm^-3].
+
+        # Hydrogen, helium mass fraction.
+        self.H_mass_frac  = self.Snapshot.p0_H_mass_frac[self.idx_d]
+        self.He_mass_frac = self.Snapshot.p0_He_mass_frac[self.idx_d]
 
         self.electron_abundance = self.Snapshot.p0_electron_abundance[self.idx_d]
         self.neutral_H_abundance = self.Snapshot.p0_neutral_H_abundance[self.idx_d]
@@ -175,6 +183,9 @@ class Disk:
         self.X_cm = np.matmul(self.A, np.vstack((self.x, self.y, self.z)) - self.x_cm)
         self.V_cm = np.matmul(self.A, np.vstack((self.u, self.v, self.w)) - self.v_cm)
 
+        # Rotate magnetic field to disk coordinate frame.
+        self.B_cm = np.matmul(self.A, np.vstack((self.Bx, self.By, self.Bz)))
+
         # Convert to cylindrical coordinates.
         disk_r  = np.sqrt(self.X_cm[0, :]**2 + self.X_cm[1, :]**2)
         disk_t  = np.degrees(np.arctan(np.divide(self.X_cm[1, :], self.X_cm[0, :])))
@@ -189,6 +200,21 @@ class Disk:
         self.omega = np.divide((np.multiply(self.X_cm[0, :] * self.l_unit, self.V_cm[1, :] * self.v_unit) - \
                                 np.multiply(self.X_cm[1, :] * self.l_unit, self.V_cm[0, :] * self.v_unit)),
                                 (self.X_cm[0, :]**2 + self.X_cm[1, :]**2)* self.l_unit**2)
+
+        # Convert magnetic field to cylindrical coordinates.
+        disk_Br = np.divide(np.multiply(self.B_cm[0, :], self.X_cm[0, :]) + \
+                            np.multiply(self.B_cm[1, :], self.X_cm[1, :]), disk_r)
+        disk_Bt = np.divide(np.multiply(self.B_cm[1, :], self.X_cm[0, :]) - \
+                            np.multiply(self.B_cm[0, :], self.X_cm[1, :]), disk_r)
+        self.B_cyl = np.vstack((disk_Br, disk_Bt, self.B_cm[2, :]))
+
+        # Calculate temperature.
+        gamma = 5.0/3.0
+        y_He  = np.divide(self.He_mass_frac, 4.0*(1.0 - self.He_mass_frac))
+        mu    = np.divide(1.0 + 4.0*y_He, 1.0 + y_He + self.electron_abundance)
+        mean_molecular_weight = np.multiply(mu, self.m_p)
+        self.temperature      = ((gamma - 1.0)/self.k_boltz) * \
+                                np.multiply(mean_molecular_weight, self.E_int * self.E_unit)
 
 
     def get_snapshot(self, cloud):
@@ -253,7 +279,10 @@ class Disk_USE_IDX:
         self.P_unit      = self.Snapshot.P_unit
         self.spec_L_unit = self.Snapshot.spec_L_unit
         self.L_unit      = self.Snapshot.L_unit
+        self.E_unit      = self.Snapshot.E_unit
         self.pc_to_au    = 206265.0
+        self.m_p         = self.Snapshot.m_p   # proton mass [g]
+        self.k_boltz     = 1.3807e-16          # Boltzmann constant [cm^2 g s^-2 K-1].
 
         # Disk particle attributes from parent snapshot.
         self.idx_d = self.disk_idx
@@ -267,14 +296,19 @@ class Disk_USE_IDX:
         self.Bx    = self.Snapshot.p0_Bx[self.idx_d]     # Magnetic field [code].
         self.By    = self.Snapshot.p0_By[self.idx_d]
         self.Bz    = self.Snapshot.p0_Bz[self.idx_d]
+        self.B_mag = np.sqrt(self.Bx**2 + self.By**2 + self.Bz**2)
         self.rho   = self.Snapshot.p0_rho[self.idx_d]    # Density [code].
         self.P     = self.Snapshot.p0_P[self.idx_d]      # Pressure [code].
-        self.E_int = self.Snapshot.p0_E_int[self.idx_d]  # Internal energy.
+        self.E_int = self.Snapshot.p0_E_int[self.idx_d]  # Internal energy (per unit mass).
 
         self.n_H   = self.Snapshot.p0_n_H[self.idx_d]    # H number density [cm^-3].
         self.n_He  = self.Snapshot.p0_n_He[self.idx_d]   # He number density [cm^-3].
 
-        self.electron_abundance = self.Snapshot.p0_electron_abundance[self.idx_d]
+        # Hydrogen, helium mass fraction.
+        self.H_mass_frac  = self.Snapshot.p0_H_mass_frac[self.idx_d]
+        self.He_mass_frac = self.Snapshot.p0_He_mass_frac[self.idx_d]
+
+        self.electron_abundance  = self.Snapshot.p0_electron_abundance[self.idx_d]
         self.neutral_H_abundance = self.Snapshot.p0_neutral_H_abundance[self.idx_d]
 
         # Disk + sink center-of-mass, angular momentum.
@@ -294,6 +328,9 @@ class Disk_USE_IDX:
         self.X_cm = np.matmul(self.A, np.vstack((self.x, self.y, self.z)) - self.x_cm)
         self.V_cm = np.matmul(self.A, np.vstack((self.u, self.v, self.w)) - self.v_cm)
 
+        # Rotate magnetic field to disk coordinate frame.
+        self.B_cm = np.matmul(self.A, np.vstack((self.Bx, self.By, self.Bz)))
+
         # Convert to cylindrical coordinates.
         disk_r  = np.sqrt(self.X_cm[0, :]**2 + self.X_cm[1, :]**2)
         disk_t  = np.degrees(np.arctan(np.divide(self.X_cm[1, :], self.X_cm[0, :])))
@@ -308,6 +345,21 @@ class Disk_USE_IDX:
         self.omega = np.divide((np.multiply(self.X_cm[0, :] * self.l_unit, self.V_cm[1, :] * self.v_unit) - \
                                 np.multiply(self.X_cm[1, :] * self.l_unit, self.V_cm[0, :] * self.v_unit)),
                                 (self.X_cm[0, :]**2 + self.X_cm[1, :]**2)* self.l_unit**2)
+
+        # Convert magnetic field to cylindrical coordinates.
+        disk_Br = np.divide(np.multiply(self.B_cm[0, :], self.X_cm[0, :]) + \
+                            np.multiply(self.B_cm[1, :], self.X_cm[1, :]), disk_r)
+        disk_Bt = np.divide(np.multiply(self.B_cm[1, :], self.X_cm[0, :]) - \
+                            np.multiply(self.B_cm[0, :], self.X_cm[1, :]), disk_r)
+        self.B_cyl = np.vstack((disk_Br, disk_Bt, self.B_cm[2, :]))
+
+        # Calculate temperature.
+        gamma = 5.0/3.0
+        y_He  = np.divide(self.He_mass_frac, 4.0*(1.0 - self.He_mass_frac))
+        mu    = np.divide(1.0 + 4.0*y_He, 1.0 + y_He + self.electron_abundance)
+        mean_molecular_weight = np.multiply(mu, self.m_p)
+        self.temperature      = ((gamma - 1.0)/self.k_boltz) * \
+                                np.multiply(mean_molecular_weight, self.E_int * self.E_unit)
 
     def get_snapshot(self, cloud):
         fname_snap = os.path.join(self.snapdir, 'snapshot_{0:03d}.hdf5'.format(self.snapshot))
@@ -369,8 +421,9 @@ class Snapshot:
         self.t_unit_myr  = self.t_unit / (3600.0 * 24.0 * 365.0 * 1e6)
         self.rho_unit    = self.m_unit / self.l_unit**3
         self.P_unit      = self.m_unit / self.l_unit / self.t_unit**2
-        self.spec_L_unit = self.l_unit * self.v_unit       # Specific angular momentum (get_net_ang_mom).
-        self.L_unit      = self.spec_L_unit * self.m_unit  # Angular momentum.
+        self.spec_L_unit = self.l_unit * self.v_unit        # Specific angular momentum (get_net_ang_mom).
+        self.L_unit      = self.spec_L_unit * self.m_unit   # Angular momentum.
+        self.E_unit      = self.l_unit**2 / self.t_unit**2  # Energy [erg].
 
         # Other useful conversion factors.
         self.cm_to_AU = 6.6845871226706e-14
