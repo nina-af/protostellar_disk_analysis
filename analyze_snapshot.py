@@ -160,11 +160,15 @@ class Disk:
         self.n_He  = self.Snapshot.p0_n_He[self.idx_d]   # He number density [cm^-3].
 
         # Hydrogen, helium mass fraction.
-        self.H_mass_frac  = self.Snapshot.p0_H_mass_frac[self.idx_d]
-        self.He_mass_frac = self.Snapshot.p0_He_mass_frac[self.idx_d]
+        self.total_metallicity = self.Snapshot.p0_total_metallicity[self.idx_d]
+        self.H_mass_frac       = self.Snapshot.p0_H_mass_frac[self.idx_d]
+        self.He_mass_frac      = self.Snapshot.p0_He_mass_frac[self.idx_d]
 
-        self.electron_abundance = self.Snapshot.p0_electron_abundance[self.idx_d]
+        self.electron_abundance  = self.Snapshot.p0_electron_abundance[self.idx_d]
         self.neutral_H_abundance = self.Snapshot.p0_neutral_H_abundance[self.idx_d]
+        self.molecular_mass_frac = self.Snapshot.p0_molecular_mass_frac[self.idx_d]
+
+        self.dust_temp = self.Snapshot.p0_dust_temp[self.idx_d]
 
         # Disk + sink center-of-mass, angular momentum.
         m_cm, x_cm, v_cm  = self.Snapshot.system_center_of_mass(self.disk_ids, self.sink_ids)
@@ -305,11 +309,15 @@ class Disk_USE_IDX:
         self.n_He  = self.Snapshot.p0_n_He[self.idx_d]   # He number density [cm^-3].
 
         # Hydrogen, helium mass fraction.
-        self.H_mass_frac  = self.Snapshot.p0_H_mass_frac[self.idx_d]
-        self.He_mass_frac = self.Snapshot.p0_He_mass_frac[self.idx_d]
+        self.total_metallicity = self.Snapshot.p0_total_metallicity[self.idx_d]
+        self.H_mass_frac       = self.Snapshot.p0_H_mass_frac[self.idx_d]
+        self.He_mass_frac      = self.Snapshot.p0_He_mass_frac[self.idx_d]
 
         self.electron_abundance  = self.Snapshot.p0_electron_abundance[self.idx_d]
         self.neutral_H_abundance = self.Snapshot.p0_neutral_H_abundance[self.idx_d]
+        self.molecular_mass_frac = self.Snapshot.p0_molecular_mass_frac[self.idx_d]
+
+        self.dust_temp = self.Snapshot.p0_dust_temp[self.idx_d]
 
         # Disk + sink center-of-mass, angular momentum.
         m_cm, x_cm, v_cm  = self.Snapshot.system_center_of_mass(self.disk_ids, self.sink_ids)
@@ -458,6 +466,7 @@ class Snapshot:
         self.p0_rho          = self.p0['Density'][:]
         self.p0_H_mass_frac  = 1.0 - self.p0['Metallicity'][:, 0]
         self.p0_He_mass_frac = self.p0['Metallicity'][:, 1]
+        self.p0_total_metallicity = self.p0['Metallicity'][:, 0]
         self.p0_n_H  = (1.0 / self.m_p) * np.multiply(self.p0_rho * self.rho_unit, \
                         self.p0_H_mass_frac)
         self.p0_n_He = (1.0 / (4.0 * self.m_p)) * np.multiply(self.p0_rho * self.rho_unit, \
@@ -466,12 +475,15 @@ class Snapshot:
         # Electron abundance, neutral hydrogen abundance, moldecular mass fraction.
         self.p0_electron_abundance  = self.p0['ElectronAbundance'][:]
         self.p0_neutral_H_abundance = self.p0['NeutralHydrogenAbundance'][:]
-        self.p0_H2_mass_frac        = self.p0['MolecularMassFraction'][:]
+        self.p0_molecular_mass_frac = self.p0['MolecularMassFraction'][:]
 
         # Internal energy, pressure (P = (gamma - 1) * rho * E_int), sound speed.
         self.p0_E_int = self.p0['InternalEnergy'][:]
         self.p0_P     = self.p0['Pressure'][:]
         self.p0_cs    = self.p0['SoundSpeed'][:]
+
+        # Dust temperature.
+        self.p0_dust_temp = self.p0['Dust_Temperature'][:]
 
         # PartType5 data.
         self.p5 = None
