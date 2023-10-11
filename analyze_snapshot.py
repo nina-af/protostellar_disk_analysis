@@ -97,43 +97,44 @@ class Disk:
     """
 
     def __init__(self, fname, cloud, USE_IDX=False):
+        
+        self.fname = fname
+        self.cloud = cloud
 
         # Read from saved HDF5 file.
-        f      = h5py.File(fname, 'r')
-        header = f['header']
-
-        self.fname        = fname
-        self.cloud        = cloud
-        self.snapshot     = header.attrs['snapshot']       # Snapshot number.
-        self.snapdir      = header.attrs['snapdir']        # Snapshot data directory.
-        self.Snapshot     = self.get_snapshot(self.cloud)  # Snapshot object.
-        self.disk_type    = header.attrs['disk_type']
-        self.disk_name    = header.attrs['disk_name']
-        self.primary_sink = header.attrs['primary_sink']
-        self.sink_ids     = header.attrs['sink_ids']
-        self.num_sinks    = header.attrs['num_sinks']
-        self.num_gas      = header.attrs['num_gas']
-        self.n_H_min      = header.attrs['n_H_min']
-        self.disk_dm      = header.attrs['disk_dm']
-        self.disk_mass    = header.attrs['disk_mass']
-        self.truncation_radius_AU  = header.attrs['truncation_radius_AU']
-        if header.attrs['truncated_by_neighbor'] == 'True':
-            self.truncated_by_neighbor = True
-        else:
-            self.truncated_by_neighbor = False
-        if USE_IDX:
-            self.disk_ids = f.get('disk_idx')[:]
-        else:
-            self.disk_ids = f.get('disk_ids')[:]
+        with h5py.File(fname, 'r') as f:
+            header = f['header']
+            self.snapshot     = header.attrs['snapshot']       # Snapshot number.
+            self.snapdir      = header.attrs['snapdir']        # Snapshot data directory.
+            self.disk_type    = header.attrs['disk_type']
+            self.disk_name    = header.attrs['disk_name']
+            self.primary_sink = header.attrs['primary_sink']
+            self.sink_ids     = header.attrs['sink_ids']
+            self.num_sinks    = header.attrs['num_sinks']
+            self.num_gas      = header.attrs['num_gas']
+            self.n_H_min      = header.attrs['n_H_min']
+            self.disk_dm      = header.attrs['disk_dm']
+            self.disk_mass    = header.attrs['disk_mass']
+            self.truncation_radius_AU = header.attrs['truncation_radius_AU']
+            if header.attrs['truncated_by_neighbor'] == 'True':
+                self.truncated_by_neighbor = True
+            else:
+                self.truncated_by_neighbor = False
+            if USE_IDX:
+                self.disk_ids = f.get('disk_idx')[:]
+            else:
+                self.disk_ids = f.get('disk_ids')[:]
+              
+        # Snapshot object.
+        self.Snapshot = self.get_snapshot(self.cloud)  
 
         # Unit conversions from parent snapshot.
-        self.G_code = self.Snapshot.G_code
-        self.l_unit = self.Snapshot.l_unit
-        self.m_unit = self.Snapshot.m_unit
-        self.v_unit = self.Snapshot.v_unit
-        self.B_unit = self.Snapshot.B_unit
-        self.B_code = self.Snapshot.B_code
-        self.gizmo2gauss     = self.B_code / self.B_unit
+        self.G_code          = self.Snapshot.G_code
+        self.l_unit          = self.Snapshot.l_unit
+        self.m_unit          = self.Snapshot.m_unit
+        self.v_unit          = self.Snapshot.v_unit
+        self.B_unit          = self.Snapshot.B_unit
+        self.B_code          = self.Snapshot.B_code
         self.t_unit          = self.Snapshot.t_unit
         self.t_unit_myr      = self.Snapshot.t_unit_myr
         self.rho_unit        = self.Snapshot.rho_unit
@@ -143,15 +144,14 @@ class Disk:
         self.L_unit          = self.Snapshot.L_unit
         self.E_unit          = self.Snapshot.E_unit  # Internal energy per unit mass.
         self.pc_to_au        = 206265.0
-        self.m_p             = self.Snapshot.m_p     # Proton mass [g]
         self.u_to_temp_units = self.Snapshot.u_to_temp_units
+        #self.gizmo2gauss     = self.B_code / self.B_unit
 
         # Get array indices of disk particles from parent snapshot.
         if USE_IDX:
             self.idx_d = self.disk_ids
         else:
             self.idx_d = np.isin(self.Snapshot.p0_ids, self.disk_ids)
-        f.close()
 
         # Disk particle attributes from parent snapshot.
         self.m     = self.Snapshot.p0_m[self.idx_d]      # Mass [code].
@@ -166,32 +166,29 @@ class Disk:
         self.Bz    = self.Snapshot.p0_Bz[self.idx_d]
         self.B_mag = self.Snapshot.p0_B_mag[self.idx_d]
         self.rho   = self.Snapshot.p0_rho[self.idx_d]    # Density [code].
-        self.P     = self.Snapshot.p0_P[self.idx_d]      # Pressure [code].
         self.E_int = self.Snapshot.p0_E_int[self.idx_d]  # Internal energy per unit mass.
         self.n_H   = self.Snapshot.p0_n_H[self.idx_d]    # H number density [cm^-3].
-        self.n_He  = self.Snapshot.p0_n_He[self.idx_d]   # He number density [cm^-3].
+        self.Ne    = self.Snapshot.p0_Ne[self.idx_d]     # Electron abundance.
 
-        # Hydrogen, helium mass fraction.
-        self.total_metallicity = self.Snapshot.p0_total_metallicity[self.idx_d]
-        self.H_mass_frac       = self.Snapshot.p0_H_mass_frac[self.idx_d]
-        self.He_mass_frac      = self.Snapshot.p0_He_mass_frac[self.idx_d]
-
-        self.electron_abundance  = self.Snapshot.p0_electron_abundance[self.idx_d]
-        self.neutral_H_abundance = self.Snapshot.p0_neutral_H_abundance[self.idx_d]
-        self.molecular_mass_frac = self.Snapshot.p0_molecular_mass_frac[self.idx_d]
-
-        # Dust temperature, gas sound speed.
-        self.dust_temp = self.Snapshot.p0_dust_temp[self.idx_d]
-        self.cs        = self.Snapshot.p0_cs[self.idx_d]
-
-        # Mean molecular weight, temperature.
+        # Mean molecular weight, temperature, dust temperature.
         self.mean_molecular_weight = self.Snapshot.p0_mean_molecular_weight[self.idx_d]
         self.temperature           = self.Snapshot.p0_temperature[self.idx_d]
+        self.dust_temp             = self.Snapshot.p0_dust_temp[self.idx_d]
 
         # Non-ideal MHD coefficients.
         self.eta_O = self.Snapshot.p0_eta_O[self.idx_d]
         self.eta_H = self.Snapshot.p0_eta_H[self.idx_d]
         self.eta_A = self.Snapshot.p0_eta_A[self.idx_d]
+        
+        # OLD ATTRIBUTES:
+        #self.P     = self.Snapshot.p0_P[self.idx_d]      # Pressure [code].
+        #self.n_He  = self.Snapshot.p0_n_He[self.idx_d]   # He number density [cm^-3].
+        #self.H_mass_frac       = self.Snapshot.p0_H_mass_frac[self.idx_d]
+        #self.He_mass_frac      = self.Snapshot.p0_He_mass_frac[self.idx_d]
+        #self.neutral_H_abundance = self.Snapshot.p0_neutral_H_abundance[self.idx_d]
+        #self.molecular_mass_frac = self.Snapshot.p0_molecular_mass_frac[self.idx_d]
+        #self.total_metallicity = self.Snapshot.p0_total_metallicity[self.idx_d]
+        #self.cs        = self.Snapshot.p0_cs[self.idx_d]
 
         # Disk + sink center-of-mass, angular momentum.
         m_cm, x_cm, v_cm  = self.Snapshot.system_center_of_mass(self.disk_ids, self.sink_ids, USE_IDX=USE_IDX)
@@ -259,7 +256,7 @@ class Snapshot:
         particles if particle IDs are not unique.
     """
 
-    def __init__(self, fname, cloud, m_p=1.661e-24, B_unit=1e4):
+    def __init__(self, fname, cloud, B_unit=1e4):
 
         # Physical constants.
         self.PROTONMASS_CGS     = 1.6726e-24
@@ -278,136 +275,127 @@ class Snapshot:
         self.R0      = cloud.R
         self.L0      = cloud.L      # Volume-equivalent length.
         self.alpha0  = cloud.alpha  # Initial virial parameter.
-        self.m_p     = m_p
+        
+        
+        # Open HDF5 file.
+        with h5py.File(fname, 'r') as f:
+            header = f['Header']
+            p0     = f['PartType0']
+            
+            # Do star particles exist in this snapshot?
+            self.stars_exist = False
+            if 'PartType5' in f:
+                self.stars_exist = True
+                p5 = f['PartType5']
+                
+            # Header attributes.
+            self.box_size = header.attrs['BoxSize']
+            self.num_p0   = header.attrs['NumPart_Total'][0]
+            self.num_p5   = header.attrs['NumPart_Total'][5]
+            self.t        = header.attrs['Time']
+        
+            # Unit conversions to cgs; note typo in header for G_code.
+            self.G_code      = header.attrs['Gravitational_Constant_In_Code_Inits']
+            self.B_code      = header.attrs['Internal_UnitB_In_Gauss']
+            self.l_unit      = header.attrs['UnitLength_In_CGS']
+            self.m_unit      = header.attrs['UnitMass_In_CGS']
+            self.v_unit      = header.attrs['UnitVelocity_In_CGS']
+            self.B_unit      = B_unit                           # Magnetic field unit in Gauss.
+            self.t_unit      = self.l_unit / self.v_unit
+            self.t_unit_myr  = self.t_unit / (3600.0 * 24.0 * 365.0 * 1e6)
+            self.rho_unit    = self.m_unit / self.l_unit**3
+            self.nH_unit     = self.rho_unit/self.PROTONMASS_CGS
+            self.P_unit      = self.m_unit / self.l_unit / self.t_unit**2
+            self.spec_L_unit = self.l_unit * self.v_unit        # Specific angular momentum (get_net_ang_mom).
+            self.L_unit      = self.spec_L_unit * self.m_unit   # Angular momentum.
+            self.E_unit      = self.l_unit**2 / self.t_unit**2  # Energy [erg].
+            # Convert internal energy to temperature units.
+            self.u_to_temp_units = (self.PROTONMASS_CGS/self.BOLTZMANN_CGS)*self.E_unit
 
-        # Open h5py file.
-        self.f = h5py.File(fname, 'r')
-        self.header = self.f['Header']
+            # Other useful conversion factors.
+            self.cm_to_AU = 6.6845871226706e-14
+            self.cm_to_pc = 3.2407792896664e-19
 
-        # Do star particles exist in this snapshot?
-        self.stars_exist = False
-        if 'PartType5' in self.f:
-            self.stars_exist = True
+            # Critical density for star formation
+            self.sf_density_threshold = header.attrs['Density_Threshold_For_SF_CodeUnits']
 
-        # Header attributes.
-        self.box_size = self.header.attrs['BoxSize']
-        self.num_p0   = self.header.attrs['NumPart_Total'][0]
-        self.num_p5   = self.header.attrs['NumPart_Total'][5]
-        self.t        = self.header.attrs['Time']
+            # PartType0 data.
+            self.p0_ids   = p0['ParticleIDs'][()]         # Particle IDs.
+            self.p0_m     = p0['Masses'][()]              # Masses.
+            self.p0_rho   = p0['Density'][()]             # Density.
+            self.p0_E_int = p0['InternalEnergy'][()]      # Internal energy.
+            self.p0_x     = p0['Coordinates'][()][:, 0]   # Coordinates.
+            self.p0_y     = p0['Coordinates'][()][:, 1]
+            self.p0_z     = p0['Coordinates'][()][:, 2]
+            self.p0_u     = p0['Velocities'][()][:, 0]    # Velocities.
+            self.p0_v     = p0['Velocities'][()][:, 1]
+            self.p0_w     = p0['Velocities'][()][:, 2]
+            self.p0_Ne    = p0['ElectronAbundance'][()]   # Electron abundance.
+            self.p0_Bx    = p0['MagneticField'][()][:, 0]
+            self.p0_By    = p0['MagneticField'][()][:, 1]
+            self.p0_Bz    = p0['MagneticField'][()][:, 2]
+            self.p0_B_mag = np.sqrt(self.p0_Bx**2 + self.p0_By**2 + self.p0_Bz**2)
+            
+            # Hydrogen number density and total metallicity.
+            self.p0_n_H  = (1.0 / self.PROTONMASS_CGS) * \
+                            np.multiply(self.p0_rho * self.rho_unit, 1.0 - p0['Metallicity'][()][:, 0])
+            self.p0_total_metallicity = p0['Metallicity'][()][:, 0]
+            
+            # Calculate mean molecular weight.
+            self.p0_mean_molecular_weight = self.get_mean_molecular_weight(self.p0_ids)
+            
+            # Calculate gas adiabatic index and temperature.
+            fH, f, xe            = self.HYDROGEN_MASSFRAC, p0['MolecularMassFraction'][()], self.p0_Ne
+            f_mono, f_di         = fH*(xe + 1.-f) + (1.-fH)/4., fH*f/2.
+            gamma_mono, gamma_di = 5./3., 7./5.
+            gamma                = 1. + (f_mono + f_di) / (f_mono/(gamma_mono-1.) + f_di/(gamma_di-1.))
+            self.p0_temperature  = (gamma - 1.) * self.p0_mean_molecular_weight * \
+                                    self.u_to_temp_units * self.p0_E_int
+            # Dust temperature.
+            if 'Dust_Temperature' in p0.keys():
+            	self.p0_dust_temp = p0['Dust_Temperature'][()]
+            else:
+            	self.p0_dust_temp = self.p0_temperature
+        
+            # Get stored coefficients if HDF5 field exists.
+            if 'NonidealDiffusivities' in p0.keys():
+                self.p0_eta_O = p0['NonidealDiffusivities'][()][:, 0]
+                self.p0_eta_H = p0['NonidealDiffusivities'][()][:, 1]
+                self.p0_eta_A = p0['NonidealDiffusivities'][()][:, 2]
+            # Else, calculate non-ideal MHD coefficients.
+            else:
+                eta_O, eta_H, eta_A = self.get_nonideal_MHD_coefficients(self.p0_ids)
+                self.p0_eta_O       = eta_O
+                self.p0_eta_H       = eta_H
+                self.p0_eta_A       = eta_A
+            
+            if 'TimeStep' in p0.keys():
+                self.p0_timestep = p0['TimeStep'][()]
+                
+            if 'Temperature' in p0.keys():
+                self.p0_temperature_GIZMO = p0['Temperature'][()]
+            else:
+                self.p0_temperature_GIZMO = None
 
-        # Unit conversions to cgs; note typo in header for G_code.
-        self.G_code = self.header.attrs['Gravitational_Constant_In_Code_Inits']
-        self.B_code = self.header.attrs['Internal_UnitB_In_Gauss']
-        self.l_unit = self.header.attrs['UnitLength_In_CGS']
-        self.m_unit = self.header.attrs['UnitMass_In_CGS']
-        self.v_unit = self.header.attrs['UnitVelocity_In_CGS']
-        self.B_unit = B_unit
-        self.t_unit      = self.l_unit / self.v_unit
-        self.t_unit_myr  = self.t_unit / (3600.0 * 24.0 * 365.0 * 1e6)
-        self.rho_unit    = self.m_unit / self.l_unit**3
-        self.nH_unit     = self.rho_unit/self.PROTONMASS_CGS
-        self.P_unit      = self.m_unit / self.l_unit / self.t_unit**2
-        self.spec_L_unit = self.l_unit * self.v_unit        # Specific angular momentum (get_net_ang_mom).
-        self.L_unit      = self.spec_L_unit * self.m_unit   # Angular momentum.
-        self.E_unit      = self.l_unit**2 / self.t_unit**2  # Energy [erg].
-        # Convert internal energy to temperature units.
-        self.u_to_temp_units = (self.PROTONMASS_CGS/self.BOLTZMANN_CGS)*self.E_unit
+            # PartType5 data.
+            if self.stars_exist:
+                # Particle IDs.
+                self.p5_ids = p5['ParticleIDs'][()]               # Particle IDs.
+                self.p5_m   = p5['Masses'][()]                    # Masses.
+                self.p5_x   = p5['Coordinates'][()][:, 0]         # Coordinates.
+                self.p5_y   = p5['Coordinates'][()][:, 1]
+                self.p5_z   = p5['Coordinates'][()][:, 2]
+                self.p5_u   = p5['Velocities'][()][:, 0]          # Velocities.
+                self.p5_v   = p5['Velocities'][()][:, 1]
+                self.p5_w   = p5['Velocities'][()][:, 2]
+                self.p5_lx  = p5['BH_Specific_AngMom'][()][:, 0]  # Specific angular momentum.
+                self.p5_ly  = p5['BH_Specific_AngMom'][()][:, 1]
+                self.p5_lz  = p5['BH_Specific_AngMom'][()][:, 2]
 
-        # Other useful conversion factors.
-        self.cm_to_AU = 6.6845871226706e-14
-        self.cm_to_pc = 3.2407792896664e-19
-
-        # Critical density for star formation
-        self.sf_density_threshold = self.header.attrs['Density_Threshold_For_SF_CodeUnits']
-
-        # PartType0 data.
-        self.p0     = self.f['PartType0']
-        self.p0_ids = self.p0['ParticleIDs'][:]
-
-        # Masses.
-        self.p0_m = self.p0['Masses'][:]
-
-        # Coordinates.
-        self.p0_x = self.p0['Coordinates'][:, 0]
-        self.p0_y = self.p0['Coordinates'][:, 1]
-        self.p0_z = self.p0['Coordinates'][:, 2]
-
-        # Velocities.
-        self.p0_u = self.p0['Velocities'][:, 0]
-        self.p0_v = self.p0['Velocities'][:, 1]
-        self.p0_w = self.p0['Velocities'][:, 2]
-
-        # Magnetic field.
-        self.p0_Bx = self.p0['MagneticField'][:, 0]
-        self.p0_By = self.p0['MagneticField'][:, 1]
-        self.p0_Bz = self.p0['MagneticField'][:, 2]
-        self.p0_B_mag = np.sqrt(self.p0_Bx**2 + self.p0_By**2 + self.p0_Bz**2)
-
-        # Mass density [code], H/He number density [cm^-3] (m_p = 1.661e-24 g).
-        self.p0_rho          = self.p0['Density'][:]
-        self.p0_H_mass_frac  = 1.0 - self.p0['Metallicity'][:, 0]
-        self.p0_He_mass_frac = self.p0['Metallicity'][:, 1]
-        self.p0_total_metallicity = self.p0['Metallicity'][:, 0]
-        self.p0_n_H  = (1.0 / self.m_p) * np.multiply(self.p0_rho * self.rho_unit, \
-                        self.p0_H_mass_frac)
-        self.p0_n_He = (1.0 / (4.0 * self.m_p)) * np.multiply(self.p0_rho * self.rho_unit, \
-                        self.p0_He_mass_frac)
-
-        # Electron abundance, neutral hydrogen abundance, moldecular mass fraction.
-        self.p0_electron_abundance  = self.p0['ElectronAbundance'][:]
-        self.p0_neutral_H_abundance = self.p0['NeutralHydrogenAbundance'][:]
-        self.p0_molecular_mass_frac = self.p0['MolecularMassFraction'][:]
-
-        # Internal energy, pressure (P = (gamma - 1) * rho * E_int), sound speed.
-        self.p0_E_int = self.p0['InternalEnergy'][:]
-        self.p0_P     = self.p0['Pressure'][:]
-        self.p0_cs    = self.p0['SoundSpeed'][:]
-
-        # Dust temperature.
-        self.p0_dust_temp = self.p0['Dust_Temperature'][:]
-
-        # Calculate mean molecular weight, temperature.
-        self.p0_mean_molecular_weight = self.get_mean_molecular_weight(self.p0_ids)
-        self.p0_temperature           = self.get_temperature(self.p0_ids)
-
-        # Calculate non-ideal MHD coefficients.
-        eta_O, eta_H, eta_A = self.get_nonideal_MHD_coefficients(self.p0_ids)
-
-        self.p0_eta_O = eta_O
-        self.p0_eta_H = eta_H
-        self.p0_eta_A = eta_A
-
-        # PartType5 data.
-        self.p5 = None
-        if self.stars_exist:
-            self.p5 = self.f['PartType5']
-
-            # Particle IDs.
-            self.p5_ids = self.p5['ParticleIDs'][:]
-
-            # Masses, standard gravitational parameter.
-            self.p5_m  = self.p5['Masses'][:]
-            self.p5_mu = self.G_code * self.p5_m
-
-            # Coordinates.
-            self.p5_x = self.p5['Coordinates'][:, 0]
-            self.p5_y = self.p5['Coordinates'][:, 1]
-            self.p5_z = self.p5['Coordinates'][:, 2]
-
-            # Velocities.
-            self.p5_u = self.p5['Velocities'][:, 0]
-            self.p5_v = self.p5['Velocities'][:, 1]
-            self.p5_w = self.p5['Velocities'][:, 2]
-
-            # Specific angular momentum.
-            self.p5_lx = self.p5['BH_Specific_AngMom'][:, 0]
-            self.p5_ly = self.p5['BH_Specific_AngMom'][:, 1]
-            self.p5_lz = self.p5['BH_Specific_AngMom'][:, 2]
-
-            # Sink particle attributes.
-            self.p5_sink_radius      = self.p5['SinkRadius'][:]
-            self.p5_accretion_length = self.p5['BH_AccretionLength'][:]
-            self.p5_sf_time          = self.p5['StellarFormationTime'][:]
+                # Sink particle attributes.
+                self.p5_sink_radius      = p5['SinkRadius'][()]
+                self.p5_accretion_length = p5['BH_AccretionLength'][()]
+                self.p5_sf_time          = p5['StellarFormationTime'][()]
 
         # Initial t_cross, t_ff, 3D rms velocity, surface density.
         self.t_cross0 = cloud.t_cross
@@ -1183,21 +1171,6 @@ class Snapshot:
 
         return disk_ids
 
-    # Calculate gas adiabatic index.
-    def gamma_eos(self, gas_ids, USE_IDX=False):
-        if USE_IDX:
-            idx_g = gas_ids
-        else:
-            idx_g = np.isin(self.p0_ids, gas_ids)
-        fH         = self.HYDROGEN_MASSFRAC
-        f          = self.p0_molecular_mass_frac[idx_g]
-        xe         = self.p0_electron_abundance[idx_g]
-        f_mono     = fH*(xe + 1.-f) + (1.-fH)/4.
-        f_di       = fH*f/2.
-        gamma_mono = 5./3.
-        gamma_di   = 7./5.
-        return 1. + (f_mono + f_di) / (f_mono/(gamma_mono-1.) + f_di/(gamma_di-1.))
-
     # Calculate dust-to-metals ratio, normalized to solar value of 1/2.
     def _return_dust_to_metals_ratio_vs_solar(self, gas_ids, defined='RT_INFRARED', USE_IDX=False):
         if USE_IDX:
@@ -1219,17 +1192,7 @@ class Snapshot:
         nH_cgs                = self.p0_rho[idx_g] * self.nH_unit
         T_transition          = self._DMIN(8000., nH_cgs)
         f_mol                 = 1./(1. + T_eff_atomic**2/T_transition**2)
-        return 4. / (1. + (3. + 4.*self.p0_electron_abundance[idx_g] - 2.*f_mol) * self.HYDROGEN_MASSFRAC)
-
-    # Calculate gas temperature.
-    def get_temperature(self, gas_ids, USE_IDX=False):
-        if USE_IDX:
-            idx_g = gas_ids
-        else:
-            idx_g = np.isin(self.p0_ids, gas_ids)
-        temperature = self.p0_mean_molecular_weight[idx_g] * (self.gamma_eos(gas_ids, USE_IDX=False)-1.0) * \
-                      self.u_to_temp_units * self.p0_E_int[idx_g]
-        return temperature
+        return 4. / (1. + (3. + 4.*self.p0_Ne[idx_g] - 2.*f_mol) * self.HYDROGEN_MASSFRAC)
 
     # Calculate non-ideal MHD coefficients.
     def get_nonideal_MHD_coefficients(self, gas_ids, USE_IDX=False):
@@ -1255,7 +1218,7 @@ class Snapshot:
         y          = np.sqrt(m_ion*self.PROTONMASS_CGS/self.ELECTRONMASS_CGS)
 
         mu_eff  = 2.38
-        x_elec  = self._DMAX(1e-16, self.p0_electron_abundance[idx_g]*self.HYDROGEN_MASSFRAC*mu_eff)
+        x_elec  = self._DMAX(1e-16, self.p0_Ne[idx_g]*self.HYDROGEN_MASSFRAC*mu_eff)
         R       = x_elec * psi_prefac/ngr_ngas
         psi_0   = -3.787124454911839
         psi     = psi_0
@@ -1286,7 +1249,7 @@ class Snapshot:
         bg_inv = 1./(1. + beta_g**2)
 
         sigma_O     = xe*beta_e + xi*beta_i + xg * np.abs(Z_grain) * beta_g
-        sigma_H     = -xe*be_inv + xi*bi_inv - xg*Z_grain*bg_inv
+        sigma_H     = -xe*be_inv + xi*bi_inv + xg*Z_grain*bg_inv
         sigma_P     = xe*beta_e*be_inv + xi*beta_i*bi_inv + xg*np.abs(Z_grain)*beta_g*bg_inv
         sigma_perp2 = sigma_H*sigma_H + sigma_P*sigma_P
 
@@ -1297,9 +1260,9 @@ class Snapshot:
         eta_A = eta_prefac * (sigma_P/sigma_perp2 - 1/sigma_O)
 
         # check against unphysical negative diffusivities
-        eta_O = self._DMAX(0, eta_O)
-        eta_H = self._DMAX(0, eta_H)
-        eta_A = self._DMAX(0, eta_A)
+        #eta_O = self._DMAX(0, eta_O)
+        #eta_H = self._DMAX(0, eta_H)
+        #eta_A = self._DMAX(0, eta_A)
 
         return eta_O, eta_H, eta_A
 
