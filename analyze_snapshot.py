@@ -185,8 +185,8 @@ class Disk:
         #self.n_He  = self.Snapshot.p0_n_He[self.idx_d]   # He number density [cm^-3].
         #self.H_mass_frac       = self.Snapshot.p0_H_mass_frac[self.idx_d]
         #self.He_mass_frac      = self.Snapshot.p0_He_mass_frac[self.idx_d]
-        #self.neutral_H_abundance = self.Snapshot.p0_neutral_H_abundance[self.idx_d]
-        #self.molecular_mass_frac = self.Snapshot.p0_molecular_mass_frac[self.idx_d]
+        self.neutral_H_abundance = self.Snapshot.p0_neutral_H_abundance[self.idx_d]
+        self.molecular_mass_frac = self.Snapshot.p0_molecular_mass_frac[self.idx_d]
         #self.total_metallicity = self.Snapshot.p0_total_metallicity[self.idx_d]
         #self.cs        = self.Snapshot.p0_cs[self.idx_d]
 
@@ -340,9 +340,12 @@ class Snapshot:
             self.p0_n_H  = (1.0 / self.PROTONMASS_CGS) * \
                             np.multiply(self.p0_rho * self.rho_unit, 1.0 - p0['Metallicity'][()][:, 0])
             self.p0_total_metallicity = p0['Metallicity'][()][:, 0]
-            
             # Calculate mean molecular weight.
             self.p0_mean_molecular_weight = self.get_mean_molecular_weight(self.p0_ids)
+
+            # Neutral hydrogen abundance, molecular mass fraction.
+            self.p0_neutral_H_abundance = p0['NeutralHydrogenAbundance'][()]
+            self.p0_molecular_mass_frac = p0['MolecularMassFraction'][()]
             
             # Calculate gas adiabatic index and temperature.
             fH, f, xe            = self.HYDROGEN_MASSFRAC, p0['MolecularMassFraction'][()], self.p0_Ne
@@ -353,9 +356,7 @@ class Snapshot:
                                     self.u_to_temp_units * self.p0_E_int
             # Dust temperature.
             if 'Dust_Temperature' in p0.keys():
-            	self.p0_dust_temp = p0['Dust_Temperature'][()]
-            else:
-            	self.p0_dust_temp = self.p0_temperature
+                self.p0_dust_temp = p0['Dust_Temperature'][()]
         
             # Get stored coefficients if HDF5 field exists.
             if 'NonidealDiffusivities' in p0.keys():
@@ -371,11 +372,6 @@ class Snapshot:
             
             if 'TimeStep' in p0.keys():
                 self.p0_timestep = p0['TimeStep'][()]
-                
-            if 'Temperature' in p0.keys():
-                self.p0_temperature_GIZMO = p0['Temperature'][()]
-            else:
-                self.p0_temperature_GIZMO = None
 
             # PartType5 data.
             if self.stars_exist:
@@ -1195,7 +1191,14 @@ class Snapshot:
         return 4. / (1. + (3. + 4.*self.p0_Ne[idx_g] - 2.*f_mol) * self.HYDROGEN_MASSFRAC)
 
     # Calculate non-ideal MHD coefficients.
-    def get_nonideal_MHD_coefficients(self, gas_ids, USE_IDX=False):
+    def get_nonideal_MHD_coefficients(self, gas_ids, USE_IDX=False, version=1):
+
+        '''
+        version 0: wrong sign on Z_grain.
+        version 1: correct sign on Z_grain.
+        version 2: new nu_i prefactor; positive_definite eta_A formulation.
+        '''
+
         if USE_IDX:
             idx_g = gas_ids
         else:
@@ -1236,7 +1239,11 @@ class Snapshot:
         nu_g  = 7.90e-6 * ag01*ag01 * np.sqrt(self.p0_temperature[idx_g]/m_neutral) / (m_neutral+m_grain)
         nu_ei = 51. * xe * np.power(self.p0_temperature[idx_g], -1.5)
         nu_e  = nu_ei + 6.21e-9 * np.power(self.p0_temperature[idx_g]/100., 0.65) / m_neutral
-        nu_i  = (xe/xi) * nu_ei + 1.57e-9 / (m_neutral+m_ion)
+        nu_ie = ((self.ELECTRONMASS_CGS * xe) / (m_ion * self.PROTONMASS_CGS * xi)) * nu_ei
+        if version == 2:
+            nu_i = nu_ie + 1.57e-9/(m_neutral+m_ion)
+        else:
+            nu_i = (xe/xi) * nu_ei + 1.57e-9 / (m_neutral+m_ion)
 
         beta_prefac = self.ELECTRONCHARGE_CGS * (self.p0_B_mag[idx_g] * self.B_unit) / (self.PROTONMASS_CGS * self.C_LIGHT_CGS * n_eff)
 
@@ -1249,15 +1256,31 @@ class Snapshot:
         bg_inv = 1./(1. + beta_g**2)
 
         sigma_O     = xe*beta_e + xi*beta_i + xg * np.abs(Z_grain) * beta_g
-        sigma_H     = -xe*be_inv + xi*bi_inv + xg*Z_grain*bg_inv
+
+        if version == 0:
+            sigma_H = -xe*be_inv + xi*bi_inv - xg*Z_grain*bg_inv  # Old GIZMO typo.
+        else:
+            sigma_H = -xe*be_inv + xi*bi_inv + xg*Z_grain*bg_inv
+
         sigma_P     = xe*beta_e*be_inv + xi*beta_i*bi_inv + xg*np.abs(Z_grain)*beta_g*bg_inv
         sigma_perp2 = sigma_H*sigma_H + sigma_P*sigma_P
+
+        # Alternative formulation for eta_A which is automatically positive-definite (version=2).
+        sign_Zgrain = Z_grain/np.abs(Z_grain)
+        if Z_grain == 0:
+            sign_Zgrain = 0
+        sigma_A2 = (xe*beta_e*be_inv)*(xi*beta_i*bi_inv)*np.power(-beta_e+beta_i,2) + \
+                   (xe*beta_e*be_inv)*(xg*np.abs(Z_grain)*beta_g*bg_inv)*np.power(-beta_e+sign_Zgrain*beta_g,2) + \
+                   (xi*beta_i*bi_inv)*(xg*np.abs(Z_grain)*beta_g*bg_inv)*np.power(-beta_e+sign_Zgrain*beta_g,2)
 
         eta_prefac = (self.p0_B_mag[idx_g] * self.B_unit) * self.C_LIGHT_CGS / (4.0 * np.pi * self.ELECTRONCHARGE_CGS * n_eff)
 
         eta_O = eta_prefac / sigma_O
         eta_H = eta_prefac * sigma_H / sigma_perp2
-        eta_A = eta_prefac * (sigma_P/sigma_perp2 - 1/sigma_O)
+        if version == 2:
+            eta_A = eta_prefac * (sigma_A2)/(sigma_O*sigma_perp2)
+        else:
+            eta_A = eta_prefac * (sigma_P/sigma_perp2 - 1/sigma_O)
 
         # check against unphysical negative diffusivities
         #eta_O = self._DMAX(0, eta_O)
