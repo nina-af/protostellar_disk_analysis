@@ -296,7 +296,10 @@ class Snapshot:
         
             # Unit conversions to cgs; note typo in header for G_code.
             self.G_code      = header.attrs['Gravitational_Constant_In_Code_Inits']
-            self.B_code      = header.attrs['Internal_UnitB_In_Gauss']
+            if 'Internal_UnitB_In_Gauss' in header.attrs:
+                self.B_code = header.attrs['Internal_UnitB_In_Gauss']
+            else:
+                self.B_code = 2.916731267922059e-09
             self.l_unit      = header.attrs['UnitLength_In_CGS']
             self.m_unit      = header.attrs['UnitMass_In_CGS']
             self.v_unit      = header.attrs['UnitVelocity_In_CGS']
@@ -331,10 +334,16 @@ class Snapshot:
             self.p0_v     = p0['Velocities'][()][:, 1]
             self.p0_w     = p0['Velocities'][()][:, 2]
             self.p0_Ne    = p0['ElectronAbundance'][()]   # Electron abundance.
-            self.p0_Bx    = p0['MagneticField'][()][:, 0]
-            self.p0_By    = p0['MagneticField'][()][:, 1]
-            self.p0_Bz    = p0['MagneticField'][()][:, 2]
-            self.p0_B_mag = np.sqrt(self.p0_Bx**2 + self.p0_By**2 + self.p0_Bz**2)
+            if 'MagneticField' in p0.keys():
+                self.p0_Bx    = p0['MagneticField'][()][:, 0]
+                self.p0_By    = p0['MagneticField'][()][:, 1]
+                self.p0_Bz    = p0['MagneticField'][()][:, 2]
+                self.p0_B_mag = np.sqrt(self.p0_Bx**2 + self.p0_By**2 + self.p0_Bz**2)
+            else:
+                self.p0_Bx    = np.zeros(len(self.p0_ids))
+                self.p0_By    = np.zeros(len(self.p0_ids))
+                self.p0_Bz    = np.zeros(len(self.p0_ids))
+                self.p0_B_mag = np.zeros(len(self.p0_ids))
             
             # Hydrogen number density and total metallicity.
             self.p0_n_H  = (1.0 / self.PROTONMASS_CGS) * \
@@ -359,16 +368,21 @@ class Snapshot:
                 self.p0_dust_temp = p0['Dust_Temperature'][()]
         
             # Get stored coefficients if HDF5 field exists.
-            if 'NonidealDiffusivities' in p0.keys():
-                self.p0_eta_O = p0['NonidealDiffusivities'][()][:, 0]
-                self.p0_eta_H = p0['NonidealDiffusivities'][()][:, 1]
-                self.p0_eta_A = p0['NonidealDiffusivities'][()][:, 2]
-            # Else, calculate non-ideal MHD coefficients.
+            if 'MagneticField' in p0.keys():
+                if 'NonidealDiffusivities' in p0.keys():
+                    self.p0_eta_O = p0['NonidealDiffusivities'][()][:, 0]
+                    self.p0_eta_H = p0['NonidealDiffusivities'][()][:, 1]
+                    self.p0_eta_A = p0['NonidealDiffusivities'][()][:, 2]
+                # Else, calculate non-ideal MHD coefficients.
+                else:
+                    eta_O, eta_H, eta_A = self.get_nonideal_MHD_coefficients(self.p0_ids)
+                    self.p0_eta_O       = eta_O
+                    self.p0_eta_H       = eta_H
+                    self.p0_eta_A       = eta_A
             else:
-                eta_O, eta_H, eta_A = self.get_nonideal_MHD_coefficients(self.p0_ids)
-                self.p0_eta_O       = eta_O
-                self.p0_eta_H       = eta_H
-                self.p0_eta_A       = eta_A
+                self.p0_eta_O = np.zeros(len(self.p0_ids))
+                self.p0_eta_H = np.zeros(len(self.p0_ids))
+                self.p0_eta_A = np.zeros(len(self.p0_ids))
             
             if 'TimeStep' in p0.keys():
                 self.p0_timestep = p0['TimeStep'][()]
