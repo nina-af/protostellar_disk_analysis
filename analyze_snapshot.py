@@ -168,6 +168,7 @@ class Disk:
         self.rho   = self.Snapshot.p0_rho[self.idx_d]    # Density [code].
         self.hsml  = self.Snapshot.p0_hsml[self.idx_d]   # Smoothing length.
         self.E_int = self.Snapshot.p0_E_int[self.idx_d]  # Internal energy per unit mass.
+        self.P     = self.Snapshot.p0_P[self.idx_d]      # Pressure.
         self.n_H   = self.Snapshot.p0_n_H[self.idx_d]    # H number density [cm^-3].
         self.Ne    = self.Snapshot.p0_Ne[self.idx_d]     # Electron abundance.
 
@@ -329,6 +330,7 @@ class Snapshot:
             self.p0_rho   = p0['Density'][()]             # Density.
             self.p0_hsml  = p0['SmoothingLength'][()]     # Particle smoothing length.
             self.p0_E_int = p0['InternalEnergy'][()]      # Internal energy.
+            self.p0_P     = p0['Pressure'][()]            # Pressure.
             self.p0_x     = p0['Coordinates'][()][:, 0]   # Coordinates.
             self.p0_y     = p0['Coordinates'][()][:, 1]
             self.p0_z     = p0['Coordinates'][()][:, 2]
@@ -388,6 +390,10 @@ class Snapshot:
             
             if 'TimeStep' in p0.keys():
                 self.p0_timestep = p0['TimeStep'][()]
+
+            # For convenience, coordinates and velocities in a (n_gas, 3) array.
+            self.p0_coord = np.vstack((self.p0_x, self.p0_y, self.p0_z)).T
+            self.p0_vel   = np.vstack((self.p0_u, self.p0_v, self.p0_w)).T
 
             # PartType5 data.
             if self.stars_exist:
@@ -1096,8 +1102,8 @@ class Snapshot:
         x_vec, y_vec = self._get_orthogonal_vectors(L_unit_vec)
         A            = self._get_rotation_matrix(x_vec, y_vec, L_unit_vec)
         # Original coordinates (within r_max AU sphere); array shape = (N, 3).
-        x_orig = self.p0['Coordinates'][:][mask_r_max]
-        v_orig = self.p0['Velocities'][:][mask_r_max]
+        x_orig = self.p0_coord[mask_r_max]
+        v_orig = self.p0_vel[mask_r_max]
         # Coordinates relative to sink particle coordiantes; array shape = (N, 3).
         x_centered = x_orig - sink_x.T
         v_centered = v_orig - sink_v.T

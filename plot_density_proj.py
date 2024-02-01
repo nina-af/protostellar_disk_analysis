@@ -169,7 +169,10 @@ def plot_density_proj(s, verbose=False, **kwargs):
         
     f_str = '{0:.3f} Myr'.format(t_myrs)
     t_str = '{0:.1f} t_cross'.format(s.t / s.t_cross0)
-    l_str = '{0:s}'.format(kwargs['label'])
+    if kwargs['label'] is None:
+        l_str = ''
+    else:
+        l_str = '{0:s}'.format(kwargs['label'])
     fig.text(0.83, 1.1, f_str, color='white', size=20)
     fig.text(0.83, 1.05, t_str, color='white', size=20)
     fig.text(0.11, 1.1, l_str, color='white', size=20)
@@ -355,9 +358,18 @@ def plot_density_proj_disk(s, disk_name, disk_ids, verbose=False, USE_IDX=False,
 
     f_str = '{0:.3f} Myr'.format(t_myrs)
     t_str = '{0:.1f} t_cross'.format(s.t / s.t_cross0)
-    l_str = '{0:s}'.format(kwargs['label'])
-    s_str = '{0:s}'.format(kwargs['sink_label'])
-    e_str = '{0:s}'.format(kwargs['extra_label'])
+    if kwargs['label'] is None:
+        l_str = ''
+    else:
+        l_str = '{0:s}'.format(kwargs['label'])
+    if kwargs['sink_label'] is None:
+        s_str = ''
+    else:
+        s_str = '{0:s}'.format(kwargs['sink_label'])
+    if kwargs['extra_label'] is None:
+        e_str = ''
+    else:
+        e_str = '{0:s}'.format(kwargs['extra_label'])
     fig.text(0.87, 1.45, f_str, color='white', size=20)
     fig.text(0.87, 1.40, t_str, color='white', size=20)
     fig.text(0.11, 1.45, l_str, color='white', size=20)
