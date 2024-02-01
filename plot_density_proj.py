@@ -55,6 +55,13 @@ def plot_density_proj(s, verbose=False, **kwargs):
     else:
         mass_step = kwargs['mass_step']
 
+    # Plot line specified by 'unit_vec' array.
+    plot_unit_vec = False
+    if 'unit_vec' in kwargs:
+        if kwargs['unit_vec'] is not None:
+            plot_unit_vec = True
+            unit_vec = kwargs['unit_vec']
+
     yt.set_log_level(50)
     unit_base = {'UnitMagneticField_in_gauss': s.B_unit,
                  'UnitLength_in_cm': s.l_unit,
@@ -150,6 +157,11 @@ def plot_density_proj(s, verbose=False, **kwargs):
                 prj.annotate_marker(particle, marker='o', plot_args={'s':scale, 'color':'black'})
                 prj.annotate_marker(particle, marker='o', plot_args={'s':scale, 'color':color, 'linewidth':1.5,
                                                                      'edgecolor':'black'})
+
+        if plot_unit_vec:
+            p1 = c - 0.5 * ds.arr(unit_vec, 'code_length')  # Line endpoints.
+            p2 = c + 0.5 * ds.arr(unit_vec, 'code_length')
+            prj.annotate_line(p1, p2, coord_system="data")
                 
         plot = prj.plots[field]; plot.figure = fig; plot.axes = grid[i].axes; plot.cax = grid.cbar_axes[i]
                 
@@ -202,6 +214,13 @@ def plot_density_proj_disk(s, disk_name, disk_ids, verbose=False, USE_IDX=False,
         mass_step = 0.5
     else:
         mass_step = kwargs['mass_step']
+
+    # Plot line specified by 'unit_vec' array.
+    plot_unit_vec = False
+    if 'unit_vec' in kwargs:
+        if kwargs['unit_vec'] is not None:
+            plot_unit_vec = True
+            unit_vec = kwargs['unit_vec']
 
     yt.set_log_level(50)
     unit_base = {'UnitMagneticField_in_gauss': s.B_unit,
@@ -321,6 +340,12 @@ def plot_density_proj_disk(s, disk_name, disk_ids, verbose=False, USE_IDX=False,
                 prj1.annotate_marker(particle, marker='o', plot_args={'s':scale, 'color':'black'})
                 prj1.annotate_marker(particle, marker='o', plot_args={'s':scale, 'color':color, 'linewidth':1.5,
                                                                      'edgecolor':'black'})
+
+        if plot_unit_vec:
+            p1 = c - 0.5 * ds.arr(unit_vec, 'code_length')  # Line endpoints.
+            p2 = c + 0.5 * ds.arr(unit_vec, 'code_length')
+            prj1.annotate_line(p1, p2, coord_system="data")
+            prj2.annotate_line(p1, p2, coord_system="data")
 
         plot1 = prj1.plots[field_1]; plot1.figure = fig; plot1.axes = grid[i].axes; plot1.cax = grid.cbar_axes[i]
         plot2 = prj2.plots[field_2]; plot2.figure = fig; plot2.axes = grid[i+3].axes; plot2.cax = grid.cbar_axes[i+3]
