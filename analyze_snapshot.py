@@ -166,6 +166,7 @@ class Disk:
         self.Bz    = self.Snapshot.p0_Bz[self.idx_d]
         self.B_mag = self.Snapshot.p0_B_mag[self.idx_d]
         self.rho   = self.Snapshot.p0_rho[self.idx_d]    # Density [code].
+        self.hsml  = self.Snapshot.p0_hsml[self.idx_d]   # Smoothing length.
         self.E_int = self.Snapshot.p0_E_int[self.idx_d]  # Internal energy per unit mass.
         self.n_H   = self.Snapshot.p0_n_H[self.idx_d]    # H number density [cm^-3].
         self.Ne    = self.Snapshot.p0_Ne[self.idx_d]     # Electron abundance.
@@ -326,6 +327,7 @@ class Snapshot:
             self.p0_ids   = p0['ParticleIDs'][()]         # Particle IDs.
             self.p0_m     = p0['Masses'][()]              # Masses.
             self.p0_rho   = p0['Density'][()]             # Density.
+            self.p0_hsml  = p0['SmoothingLength'][()]     # Particle smoothing length.
             self.p0_E_int = p0['InternalEnergy'][()]      # Internal energy.
             self.p0_x     = p0['Coordinates'][()][:, 0]   # Coordinates.
             self.p0_y     = p0['Coordinates'][()][:, 1]
@@ -1210,7 +1212,9 @@ class Snapshot:
         '''
         version 0: wrong sign on Z_grain.
         version 1: correct sign on Z_grain.
-        version 2: new nu_i prefactor; positive_definite eta_A formulation.
+        version 2: new nu_i prefactor.
+        version 3: new nu_i prefactor; WRONG positive_definite eta_A formulation.
+        version 4: new nu_i prefactor; CORRECT posdef sigma_A2.
         '''
 
         if USE_IDX:
@@ -1239,7 +1243,7 @@ class Snapshot:
         R       = x_elec * psi_prefac/ngr_ngas
         psi_0   = -3.787124454911839
         psi     = psi_0
-        psi     = np.where(R < 100., psi_0/(1.+pow(R/0.18967,-0.5646)), psi)
+        psi     = np.where(R < 100., psi_0/(1.+np.power(R/0.18967,-0.5646)), psi)
         psi     = np.where(R < 0.002, R*(1.-y)/(1.+2.*y*R), psi)
 
         n_elec  = x_elec * n_eff/mu_eff
@@ -1254,10 +1258,10 @@ class Snapshot:
         nu_ei = 51. * xe * np.power(self.p0_temperature[idx_g], -1.5)
         nu_e  = nu_ei + 6.21e-9 * np.power(self.p0_temperature[idx_g]/100., 0.65) / m_neutral
         nu_ie = ((self.ELECTRONMASS_CGS * xe) / (m_ion * self.PROTONMASS_CGS * xi)) * nu_ei
-        if version == 2:
-            nu_i = nu_ie + 1.57e-9/(m_neutral+m_ion)
-        else:
+        if (version == 0) or (version == 1):
             nu_i = (xe/xi) * nu_ei + 1.57e-9 / (m_neutral+m_ion)
+        else:
+            nu_i = nu_ie + 1.57e-9/(m_neutral+m_ion)
 
         beta_prefac = self.ELECTRONCHARGE_CGS * (self.p0_B_mag[idx_g] * self.B_unit) / (self.PROTONMASS_CGS * self.C_LIGHT_CGS * n_eff)
 
@@ -1269,7 +1273,7 @@ class Snapshot:
         bi_inv = 1./(1. + beta_i**2)
         bg_inv = 1./(1. + beta_g**2)
 
-        sigma_O     = xe*beta_e + xi*beta_i + xg * np.abs(Z_grain) * beta_g
+        sigma_O = xe*beta_e + xi*beta_i + xg * np.abs(Z_grain) * beta_g
 
         if version == 0:
             sigma_H = -xe*be_inv + xi*bi_inv - xg*Z_grain*bg_inv  # Old GIZMO typo.
@@ -1280,18 +1284,23 @@ class Snapshot:
         sigma_perp2 = sigma_H*sigma_H + sigma_P*sigma_P
 
         # Alternative formulation for eta_A which is automatically positive-definite (version=2).
-        sign_Zgrain = Z_grain/np.abs(Z_grain)
-        if Z_grain == 0:
-            sign_Zgrain = 0
-        sigma_A2 = (xe*beta_e*be_inv)*(xi*beta_i*bi_inv)*np.power(-beta_e+beta_i,2) + \
-                   (xe*beta_e*be_inv)*(xg*np.abs(Z_grain)*beta_g*bg_inv)*np.power(-beta_e+sign_Zgrain*beta_g,2) + \
-                   (xi*beta_i*bi_inv)*(xg*np.abs(Z_grain)*beta_g*bg_inv)*np.power(-beta_e+sign_Zgrain*beta_g,2)
+        #sign_Zgrain = Z_grain/np.abs(Z_grain)
+        sign_Zgrain = np.where(Z_grain != 0.0, Z_grain/np.abs(Z_grain), 0.0)
+
+        if version == 3:
+            sigma_A2 = (xe*beta_e*be_inv)*(xi*beta_i*bi_inv)*np.power(-beta_e+beta_i,2) + \
+                       (xe*beta_e*be_inv)*(xg*np.abs(Z_grain)*beta_g*bg_inv)*np.power(-beta_e+sign_Zgrain*beta_g,2) + \
+                       (xi*beta_i*bi_inv)*(xg*np.abs(Z_grain)*beta_g*bg_inv)*np.power(-beta_e+sign_Zgrain*beta_g,2)
+        else:
+            sigma_A2 = (xe*beta_e*be_inv)*(xi*beta_i*bi_inv)*np.power(-beta_e+beta_i,2) + \
+                       (xe*beta_e*be_inv)*(xg*np.abs(Z_grain)*beta_g*bg_inv)*np.power(-beta_e+sign_Zgrain*beta_g,2) + \
+                       (xi*beta_i*bi_inv)*(xg*np.abs(Z_grain)*beta_g*bg_inv)*np.power(-beta_i+sign_Zgrain*beta_g,2)
 
         eta_prefac = (self.p0_B_mag[idx_g] * self.B_unit) * self.C_LIGHT_CGS / (4.0 * np.pi * self.ELECTRONCHARGE_CGS * n_eff)
 
         eta_O = eta_prefac / sigma_O
         eta_H = eta_prefac * sigma_H / sigma_perp2
-        if version == 2:
+        if (version == 3) or (version == 4):
             eta_A = eta_prefac * (sigma_A2)/(sigma_O*sigma_perp2)
         else:
             eta_A = eta_prefac * (sigma_P/sigma_perp2 - 1/sigma_O)
