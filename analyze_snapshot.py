@@ -169,6 +169,7 @@ class Disk:
         self.hsml  = self.Snapshot.p0_hsml[self.idx_d]   # Smoothing length.
         self.E_int = self.Snapshot.p0_E_int[self.idx_d]  # Internal energy per unit mass.
         self.P     = self.Snapshot.p0_P[self.idx_d]      # Pressure.
+        self.cs    = self.Snapshot.p0_cs[self.idx_d]     # Sound speed.
         self.n_H   = self.Snapshot.p0_n_H[self.idx_d]    # H number density [cm^-3].
         self.Ne    = self.Snapshot.p0_Ne[self.idx_d]     # Electron abundance.
 
@@ -183,14 +184,12 @@ class Disk:
         self.eta_A = self.Snapshot.p0_eta_A[self.idx_d]
         
         # OLD ATTRIBUTES:
-        #self.P     = self.Snapshot.p0_P[self.idx_d]      # Pressure [code].
         #self.n_He  = self.Snapshot.p0_n_He[self.idx_d]   # He number density [cm^-3].
         #self.H_mass_frac       = self.Snapshot.p0_H_mass_frac[self.idx_d]
         #self.He_mass_frac      = self.Snapshot.p0_He_mass_frac[self.idx_d]
         self.neutral_H_abundance = self.Snapshot.p0_neutral_H_abundance[self.idx_d]
         self.molecular_mass_frac = self.Snapshot.p0_molecular_mass_frac[self.idx_d]
         #self.total_metallicity = self.Snapshot.p0_total_metallicity[self.idx_d]
-        #self.cs        = self.Snapshot.p0_cs[self.idx_d]
 
         # Disk + sink center-of-mass, angular momentum.
         m_cm, x_cm, v_cm  = self.Snapshot.system_center_of_mass(self.disk_ids, self.sink_ids, USE_IDX=USE_IDX)
@@ -331,6 +330,7 @@ class Snapshot:
             self.p0_hsml  = p0['SmoothingLength'][()]     # Particle smoothing length.
             self.p0_E_int = p0['InternalEnergy'][()]      # Internal energy.
             self.p0_P     = p0['Pressure'][()]            # Pressure.
+            self.p0_cs    = p0['SoundSpeed'][()]          # Sound speed.
             self.p0_x     = p0['Coordinates'][()][:, 0]   # Coordinates.
             self.p0_y     = p0['Coordinates'][()][:, 1]
             self.p0_z     = p0['Coordinates'][()][:, 2]
