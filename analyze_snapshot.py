@@ -1213,7 +1213,7 @@ class Snapshot:
         return 4. / (1. + (3. + 4.*self.p0_Ne[idx_g] - 2.*f_mol) * self.HYDROGEN_MASSFRAC)
 
     # Calculate non-ideal MHD coefficients.
-    def get_nonideal_MHD_coefficients(self, gas_ids, USE_IDX=False, version=1):
+    def get_nonideal_MHD_coefficients(self, gas_ids, USE_IDX=False, version=1, a=0.1, cr=1.0e-17):
 
         '''
         version 0: wrong sign on Z_grain.
@@ -1228,8 +1228,10 @@ class Snapshot:
         else:
             idx_g = np.isin(self.p0_ids, gas_ids)
 
-        zeta_cr        = 1.0e-17
-        a_grain_micron = 0.1
+        #zeta_cr        = 1.0e-17
+        #a_grain_micron = 0.1
+        zeta_cr        = cr
+        a_grain_micron = a
         ag01           = a_grain_micron/0.1
         m_ion          = 24.3
         dust_to_metals = self._return_dust_to_metals_ratio_vs_solar(gas_ids, defined='RT_INFRARED', USE_IDX=USE_IDX)
