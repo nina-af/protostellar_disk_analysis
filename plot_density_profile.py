@@ -51,10 +51,10 @@ def plot_nmhd_density_profiles(s, version=4):
     rho_H_pos, rho_H_neg, eta_H_pos, eta_H_neg = get_pos_neg(rho, eta_H)
     
     # Compute density profiles.
-    x_O, y_O         = get_density_profile(np.log10(rho), eta_O, num_bins=100)
-    x_H_pos, y_H_pos = get_density_profile(np.log10(rho_H_pos), eta_H_pos, num_bins=100)
-    x_H_neg, y_H_neg = get_density_profile(np.log10(rho_H_neg), eta_H_neg, num_bins=100)
-    x_A, y_A         = get_density_profile(np.log10(rho), eta_A, num_bins=100)
+    x_O, y_O, a_O, b_O           = get_density_profile(np.log10(rho), eta_O, num_bins=100)
+    x_H_pos, y_H_pos, a_Hp, b_Hp = get_density_profile(np.log10(rho_H_pos), eta_H_pos, num_bins=100)
+    x_H_neg, y_H_neg, a_Hn, b_Hn = get_density_profile(np.log10(rho_H_neg), eta_H_neg, num_bins=100)
+    x_A, y_A, a_A, b_A           = get_density_profile(np.log10(rho), eta_A, num_bins=100)
 
     fig, ax = plt.subplots(1, 1, figsize=(6, 4), sharex=True)
     lw = 2
