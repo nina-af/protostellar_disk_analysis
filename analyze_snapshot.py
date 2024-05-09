@@ -313,6 +313,7 @@ class Snapshot:
             self.spec_L_unit = self.l_unit * self.v_unit        # Specific angular momentum (get_net_ang_mom).
             self.L_unit      = self.spec_L_unit * self.m_unit   # Angular momentum.
             self.E_unit      = self.l_unit**2 / self.t_unit**2  # Energy [erg].
+            self.eta_unit    = self.l_unit**2 / self.t_unit     # Nonideal MHD diffusivities.
             # Convert internal energy to temperature units.
             self.u_to_temp_units = (self.PROTONMASS_CGS/self.BOLTZMANN_CGS)*self.E_unit
 
@@ -1315,7 +1316,7 @@ class Snapshot:
                    
         else:
             sigma_A2 = (xe*beta_e*be_inv)*(xi*beta_i*bi_inv)*np.power(beta_i+beta_e,2) + \
-                       (xe*beta_e*be_inv)*(xg*np.abs(Z_grain)*beta_g*bg_inv)*np.power(sign_Zgrain*beta_g+beta_e,2) +
+                       (xe*beta_e*be_inv)*(xg*np.abs(Z_grain)*beta_g*bg_inv)*np.power(sign_Zgrain*beta_g+beta_e,2) + \
                        (xi*beta_i*bi_inv)*(xg*np.abs(Z_grain)*beta_g*bg_inv)*np.power(sign_Zgrain*beta_g-beta_i,2)
 
         eta_prefac = (self.p0_B_mag[idx_g] * self.B_unit) * self.C_LIGHT_CGS / (4.0 * np.pi * self.ELECTRONCHARGE_CGS * n_eff)
