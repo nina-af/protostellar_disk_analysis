@@ -27,9 +27,11 @@ def get_pos_neg(rho, eta):
 def get_density_profile(x_vals, y_vals, num_bins=100):
     # Using equal-spaced bins.
     y_mean, y_bin_edges, _ = stats.binned_statistic(x_vals, y_vals, statistic='mean', bins=num_bins)
+    y_min, _, _            = stats.binned_statistic(x_vals, y_vals, statistic='min', bins=num_bins)
+    y_max, _, _            = stats.binned_statistic(x_vals, y_vals, statistic='max', bins=num_bins)
     # Bin centers.
     x_centers = (y_bin_edges[:-1] + y_bin_edges[1:])/2
-    return x_centers, y_mean
+    return x_centers, y_mean, y_min, y_max
 
 def plot_nmhd_density_profiles(s, version=4):
     '''
@@ -58,9 +60,13 @@ def plot_nmhd_density_profiles(s, version=4):
     lw = 2
 
     ax.plot(x_O, y_O, linewidth=lw, c='tab:red', label=r'$\eta_O$')
-    ax.plot(x_H_pos, y_H_pos, linewidth=lw, c='tab:blue', label=r'$\eta_H > 0$')
-    ax.plot(x_H_neg, np.abs(y_H_neg), linewidth=lw, c='cyan', label=r'$\eta_H < 0$')
+    ax.fill_between(x_O, a_O, y2=b_O, color='tab:red', alpha=0.5)
+    ax.plot(x_H_pos, y_H_pos, linewidth=lw, c='darkblue', label=r'$\eta_H > 0$')
+    ax.fill_between(x_H_pos, a_Hp, y2=b_Hp, color='darkblue', alpha=0.5)
+    ax.plot(x_H_neg, np.abs(y_H_neg), linewidth=lw, c='dodgerblue', label=r'$\eta_H < 0$')
+    ax.fill_between(x_H_neg, np.abs(a_Hn), y2=np.abs(b_Hn), color='dodgerblue', alpha=0.5)
     ax.plot(x_A, y_A, linewidth=lw, c='tab:green', label=r'$\eta_A$')
+    ax.fill_between(x_A, a_A, y2=b_A, color='tab:green', alpha=0.5)
 
     ax.set_ylabel(r'$|\eta|$ [cm$^2$ s$^{-1}$]', fontsize=12)
     ax.set_xlabel(r'$\log_{10}(\rho)$ [g cm$^{-3}$]', fontsize=12)
