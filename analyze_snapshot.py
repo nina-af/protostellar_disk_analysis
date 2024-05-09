@@ -325,6 +325,7 @@ class Snapshot:
 
             # PartType0 data.
             self.p0_ids   = p0['ParticleIDs'][()]         # Particle IDs.
+            self.p0_cids  = p0['ParticleChildIDsNumber'][()]
             self.p0_m     = p0['Masses'][()]              # Masses.
             self.p0_rho   = p0['Density'][()]             # Density.
             self.p0_hsml  = p0['SmoothingLength'][()]     # Particle smoothing length.
@@ -379,7 +380,10 @@ class Snapshot:
                     self.p0_eta_A = p0['NonidealDiffusivities'][()][:, 2]
                 # Else, calculate non-ideal MHD coefficients.
                 else:
-                    eta_O, eta_H, eta_A = self.get_nonideal_MHD_coefficients(self.p0_ids)
+                    if 'Dust_Temperature' in p0.keys():
+                        eta_O, eta_H, eta_A = self.get_nonideal_MHD_coefficients(self.p0_ids)
+                    else:
+                        eta_O, eta_H, eta_A = 0.0, 0.0, 0.0
                     self.p0_eta_O       = eta_O
                     self.p0_eta_H       = eta_H
                     self.p0_eta_A       = eta_A
@@ -409,6 +413,10 @@ class Snapshot:
                 self.p5_lx  = p5['BH_Specific_AngMom'][()][:, 0]  # Specific angular momentum.
                 self.p5_ly  = p5['BH_Specific_AngMom'][()][:, 1]
                 self.p5_lz  = p5['BH_Specific_AngMom'][()][:, 2]
+                
+                self.p5_bhmass            = p5['BH_Mass'][()]
+                self.p5_bhmass_alpha_disk = p5['BH_Mass_AlphaDisk'][()]
+                self.p5_bhmdot            = p5['BH_Mdot'][()]
 
                 # Sink particle attributes.
                 self.p5_sink_radius      = p5['SinkRadius'][()]
@@ -1220,7 +1228,8 @@ class Snapshot:
         version 1: correct sign on Z_grain.
         version 2: new nu_i prefactor.
         version 3: new nu_i prefactor; WRONG positive_definite eta_A formulation.
-        version 4: new nu_i prefactor; CORRECT posdef sigma_A2.
+        version 4: new nu_i prefactor; ALSO WRONG posdef sigma_A2.
+        version 5: new nu_i prefactor; CORRECT posdef sigma_A2.
         '''
 
         if USE_IDX:
@@ -1299,10 +1308,15 @@ class Snapshot:
             sigma_A2 = (xe*beta_e*be_inv)*(xi*beta_i*bi_inv)*np.power(-beta_e+beta_i,2) + \
                        (xe*beta_e*be_inv)*(xg*np.abs(Z_grain)*beta_g*bg_inv)*np.power(-beta_e+sign_Zgrain*beta_g,2) + \
                        (xi*beta_i*bi_inv)*(xg*np.abs(Z_grain)*beta_g*bg_inv)*np.power(-beta_e+sign_Zgrain*beta_g,2)
-        else:
+        elif version == 4:
             sigma_A2 = (xe*beta_e*be_inv)*(xi*beta_i*bi_inv)*np.power(-beta_e+beta_i,2) + \
                        (xe*beta_e*be_inv)*(xg*np.abs(Z_grain)*beta_g*bg_inv)*np.power(-beta_e+sign_Zgrain*beta_g,2) + \
                        (xi*beta_i*bi_inv)*(xg*np.abs(Z_grain)*beta_g*bg_inv)*np.power(-beta_i+sign_Zgrain*beta_g,2)
+                   
+        else:
+            sigma_A2 = (xe*beta_e*be_inv)*(xi*beta_i*bi_inv)*np.power(beta_i+beta_e,2) + \
+                       (xe*beta_e*be_inv)*(xg*np.abs(Z_grain)*beta_g*bg_inv)*np.power(sign_Zgrain*beta_g+beta_e,2) +
+                       (xi*beta_i*bi_inv)*(xg*np.abs(Z_grain)*beta_g*bg_inv)*np.power(sign_Zgrain*beta_g-beta_i,2)
 
         eta_prefac = (self.p0_B_mag[idx_g] * self.B_unit) * self.C_LIGHT_CGS / (4.0 * np.pi * self.ELECTRONCHARGE_CGS * n_eff)
 
