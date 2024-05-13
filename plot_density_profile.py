@@ -73,7 +73,7 @@ def plot_nmhd_density_profiles(s, version=4):
     
     ax.set_title('SNAPSHOT {0:03d} ({1:.2f} t_cross)'.format(s.get_i(), s.t/s.t_cross0), fontsize=13)
 
-    ax.legend(fontsize=12)
+    ax.legend(fontsize=9)
     ax.set_yscale('log')
     ax.grid(True)
     

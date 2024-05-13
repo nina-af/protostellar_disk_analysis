@@ -350,6 +350,8 @@ class Snapshot:
                 self.p0_By    = np.zeros(len(self.p0_ids))
                 self.p0_Bz    = np.zeros(len(self.p0_ids))
                 self.p0_B_mag = np.zeros(len(self.p0_ids))
+                
+            self.p0_pot = p0['Potential'][()]             # Gravitational potential.
             
             # Hydrogen number density and total metallicity.
             self.p0_n_H  = (1.0 / self.PROTONMASS_CGS) * \
@@ -414,6 +416,8 @@ class Snapshot:
                 self.p5_lx  = p5['BH_Specific_AngMom'][()][:, 0]  # Specific angular momentum.
                 self.p5_ly  = p5['BH_Specific_AngMom'][()][:, 1]
                 self.p5_lz  = p5['BH_Specific_AngMom'][()][:, 2]
+                
+                self.p5_pot = p5['Potential'][()]                 # Gravitational potential.
                 
                 self.p5_bhmass            = p5['BH_Mass'][()]
                 self.p5_bhmass_alpha_disk = p5['BH_Mass_AlphaDisk'][()]
@@ -1323,7 +1327,7 @@ class Snapshot:
 
         eta_O = eta_prefac / sigma_O
         eta_H = eta_prefac * sigma_H / sigma_perp2
-        if (version == 3) or (version == 4):
+        if (version >= 3):
             eta_A = eta_prefac * (sigma_A2)/(sigma_O*sigma_perp2)
         else:
             eta_A = eta_prefac * (sigma_P/sigma_perp2 - 1/sigma_O)
