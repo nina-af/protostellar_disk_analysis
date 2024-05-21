@@ -35,14 +35,18 @@ def get_density_profile(x_vals, y_vals, num_bins=100):
 
 def plot_nmhd_density_profiles(s, version=4):
     '''
-    version 0: wrong sign on Z_grain.
-    version 1: correct sign on Z_grain.
-    version 2: new nu_i prefactor.
-    version 3: new nu_i prefactor; WRONG positive_definite eta_A formulation.
-    version 4: new nu_i prefactor; ALSO WRONG posdef sigma_A2.
-    version 5: new nu_i prefactor; CORRECT (?) posdef sigma_A2.
+    version -1: as stored in snapshot
+    version  0: wrong sign on Z_grain.
+    version  1: correct sign on Z_grain.
+    version  2: new nu_i prefactor.
+    version  3: new nu_i prefactor; WRONG positive_definite eta_A formulation.
+    version  4: new nu_i prefactor; ALSO WRONG posdef sigma_A2.
+    version  5: new nu_i prefactor; CORRECT (?) posdef sigma_A2.
     '''
-    eta_O, eta_H, eta_A = s.get_nonideal_MHD_coefficients(s.p0_ids, version=version)
+    if version==-1:
+        eta_O, eta_H, eta_A = s.p0_eta_O*s.eta_unit, s.p0_eta_H*s.eta_unit, s.p0_eta_A*s.eta_unit
+    else:
+        eta_O, eta_H, eta_A = s.get_nonideal_MHD_coefficients(s.p0_ids, version=version)
     
     rho = s.p0_rho * s.rho_unit
     n_H = s.p0_n_H

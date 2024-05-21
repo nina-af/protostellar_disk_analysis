@@ -1235,6 +1235,7 @@ class Snapshot:
         version 3: new nu_i prefactor; WRONG positive_definite eta_A formulation.
         version 4: new nu_i prefactor; ALSO WRONG posdef sigma_A2.
         version 5: new nu_i prefactor; CORRECT posdef sigma_A2.
+        version 6: include x_neutral factor.
         '''
 
         if USE_IDX:
@@ -1328,7 +1329,11 @@ class Snapshot:
         eta_O = eta_prefac / sigma_O
         eta_H = eta_prefac * sigma_H / sigma_perp2
         if (version >= 3):
-            eta_A = eta_prefac * (sigma_A2)/(sigma_O*sigma_perp2)
+            if version == 6:
+                x_neutral = self._DMAX(0., 1-m_ion*xi)
+                eta_A = x_neutral * eta_prefac * (sigma_A2)/(sigma_O*sigma_perp2)
+            else:
+                eta_A = eta_prefac * (sigma_A2)/(sigma_O*sigma_perp2)
         else:
             eta_A = eta_prefac * (sigma_P/sigma_perp2 - 1/sigma_O)
 
@@ -1362,6 +1367,11 @@ class Snapshot:
         return np.where(a < b, a, b)
     def _DMAX(self, a, b):
         return np.where(a > b, a, b)
+    
+    def _print_stats(self, data):
+        print('Min:  {0:.3e}'.format(np.min(data)))
+        print('Max:  {0:.3e}'.format(np.max(data)))
+        print('Mean: {0:.3e}'.format(np.mean(data)))
 
 
 
