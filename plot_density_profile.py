@@ -33,7 +33,7 @@ def get_density_profile(x_vals, y_vals, num_bins=100):
     x_centers = (y_bin_edges[:-1] + y_bin_edges[1:])/2
     return x_centers, y_mean, y_min, y_max
 
-def plot_nmhd_density_profiles(s, version=4):
+def plot_nmhd_density_profiles(s, version=4, set_ylim=False, ymin=None, ymax=None):
     '''
     version -1: as stored in snapshot
     version  0: wrong sign on Z_grain.
@@ -76,6 +76,9 @@ def plot_nmhd_density_profiles(s, version=4):
     ax.set_xlabel(r'$\log_{10}(\rho)$ [g cm$^{-3}$]', fontsize=12)
     
     ax.set_title('SNAPSHOT {0:03d} ({1:.2f} t_cross)'.format(s.get_i(), s.t/s.t_cross0), fontsize=13)
+    
+    if set_ylim:
+        ax.set_ylim(ymin=ymin, ymax=ymax)
 
     ax.legend(fontsize=9)
     ax.set_yscale('log')
