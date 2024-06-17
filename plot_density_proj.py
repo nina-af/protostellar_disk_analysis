@@ -149,6 +149,12 @@ def plot_density_proj(s, verbose=False, **kwargs):
         
         if plot_particles:
             for j, particle in enumerate(ad[('PartType5', 'Coordinates')]):
+
+                # Check to make sure particles are within plotting window.
+                dx     = np.abs(c.v - coords[j, :].v)
+                max_dx = half_width.v
+                if (dx[0] > max_dx) or (dx[1] > max_dx) or (dx[2] > max_dx):
+                    continue
                 
                 m_sink = masses[j]
                 scale  = find_nearest_size(m_sink.v, min_size, max_size, mass_step)
@@ -335,6 +341,12 @@ def plot_density_proj_disk(s, disk_name, disk_ids, verbose=False, USE_IDX=False,
 
         if plot_particles:
             for j, particle in enumerate(ad[('PartType5', 'Coordinates')]):
+
+                # Check to make sure particles are within plotting window.
+                dx     = np.abs(c.v - coords[j, :].v)
+                max_dx = half_width.v
+                if (dx[0] > max_dx) or (dx[1] > max_dx) or (dx[2] > max_dx):
+                    continue
 
                 m_sink = masses[j]
                 scale  = find_nearest_size(m_sink.v, min_size, max_size, mass_step)
