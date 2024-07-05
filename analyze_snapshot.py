@@ -416,6 +416,9 @@ class Snapshot:
                 self.p5_lx  = p5['BH_Specific_AngMom'][()][:, 0]  # Specific angular momentum.
                 self.p5_ly  = p5['BH_Specific_AngMom'][()][:, 1]
                 self.p5_lz  = p5['BH_Specific_AngMom'][()][:, 2]
+
+                self.p5_coord = np.vstack((self.p5_x, self.p5_y, self.p5_z)).T
+                self.p5_vel   = np.vstack((self.p5_u, self.p5_v, self.p5_w)).T
                 
                 self.p5_pot = p5['Potential'][()]                 # Gravitational potential.
                 
@@ -1006,7 +1009,8 @@ class Snapshot:
 
     # Identify gas particles in gas_ids belonging to disk around sink_ids.
     def get_disk(self, sink_ids, gas_ids, r_max_AU=500.0, n_H_min=1e9, verbose=False,
-                 disk_name='', save_disk=False, diskdir=None, get_L_vec=False, USE_IDX=False):
+                 disk_name='', save_disk=False, diskdir=None, get_L_vec=False, USE_IDX=False,
+                 check_nearest_neighbor=True):
         """
         Identifies subset of specified gas particles belonging to disk
         around specified sink particles based upon the following checks:
@@ -1031,7 +1035,7 @@ class Snapshot:
             if disk_name == '':
                 disk_name      = 'disk_single_{0:d}'.format(sink_ids)
             if verbose:
-                print('Getting single disk (sink ID {0:d})...'.format(sink_ids))
+                print('Getting single disk (sink ID {0:d})...'.format(sink_ids), flush=True)
         # Getting disk around multiple sink particles? Label by most massive sink.
         else:
             is_single_disk    = False
@@ -1043,7 +1047,7 @@ class Snapshot:
             if disk_name == '':
                 disk_name         = 'disk_multi_{0:d}_{1:d}'.format(num_sinks_in_disk, primary_sink)
             if verbose:
-                print('Getting multiple disk (primary sink ID {0:d}; {1:d} sinks total)...'.format(primary_sink, num_sinks_in_disk))
+                print('Getting multiple disk (primary sink ID {0:d}; {1:d} sinks total)...'.format(primary_sink, num_sinks_in_disk), flush=True)
         # Sink system center of mass, position, velocity.
         m, sink_x, sink_v = self.sink_center_of_mass(sink_ids)
 
@@ -1053,18 +1057,18 @@ class Snapshot:
         else:
             mask_init = np.isin(self.p0_ids, gas_ids)
         if verbose:
-            print('...size(mask_init) = {0:d}'.format(np.sum(mask_init)))
+            print('...size(mask_init) = {0:d}'.format(np.sum(mask_init)), flush=True)
         # Convert r_max to cgs and code units.
         r_max_cgs  = r_max_AU / self.cm_to_AU
         r_max_code = r_max_cgs / self.l_unit
         if verbose:
-            print('Initial r_max = {0:.1f} AU.'.format(r_max_AU))
+            print('Initial r_max = {0:.1f} AU.'.format(r_max_AU), flush=True)
         # Check that r_max is less than distance from center of mass to nearest non-disk sink particle.
         r_max_truncated_by_neighbor = False
         r_max = r_max_code
-        if self.num_p5 > 1:
+        if (self.num_p5 > 1) and (check_nearest_neighbor):
             if verbose:
-                print('Checking for nearby sinks within {0:.1f} AU...'.format(r_max_AU))
+                print('Checking for nearby sinks within {0:.1f} AU...'.format(r_max_AU), flush=True)
             if is_single_disk:
                 r, ids, idx = self.sort_sinks_by_distance_to_sink(self.p5_ids, primary_sink)
             else:
@@ -1081,16 +1085,16 @@ class Snapshot:
             r_near_cgs  = r_near_code * self.l_unit
             r_near_AU   = r_near_cgs * self.cm_to_AU
             if verbose:
-                print('Found nearest sink at r = {0:.1f} AU.'.format(r_near_AU))
+                print('Found nearest sink at r = {0:.1f} AU.'.format(r_near_AU), flush=True)
             if r_max_code < r_near_code:
                 r_max = r_max_code
                 if verbose:
-                    print('Keeping r_max = {0:.1f} AU.'.format(r_max_AU))
+                    print('Keeping r_max = {0:.1f} AU.'.format(r_max_AU), flush=True)
             else:
                 r_max = r_near_code
                 if verbose:
                     r_max_truncated_by_neighbor = True
-                    print('Updating r_max = {0:.1f} AU.'.format(r_near_AU))
+                    print('Updating r_max = {0:.1f} AU.'.format(r_near_AU), flush=True)
         # Sort gas particles by distance to sink system center of mass.
         r_sort, ids_sort, idx_sort = self.sort_gas_by_distance_to_point(gas_ids, sink_x, USE_IDX=USE_IDX)
         r_max_idx                  = np.argmax(r_sort > r_max)
@@ -1104,11 +1108,11 @@ class Snapshot:
             mask_r_max      = np.logical_and(mask_init, mask_r_max)
             g_ids_in_sphere = self.p0_ids[mask_r_max]
         if verbose:
-            print('...size(mask_r_max) = {0:d}'.format(np.sum(mask_r_max)))
+            print('...size(mask_r_max) = {0:d}'.format(np.sum(mask_r_max)), flush=True)
             print(g_ids_in_sphere)
         # Transform to sink-centered coordinate system; z axis parallel to net ang. momentum.
         if verbose:
-            print('Transforming to sink-centered disk coordinate system...')
+            print('Transforming to sink-centered disk coordinate system...', flush=True)
         # Get angular momentum vector from all gas particles within r_max AU of sink particles.
         L_unit_vec, L_mag = self.get_net_ang_mom(g_ids_in_sphere, sink_ids=sink_ids, USE_IDX=USE_IDX)
         # Define rotation matrix for coordinate system transformation.
@@ -1134,32 +1138,32 @@ class Snapshot:
         v_phi = np.divide((np.multiply(x, v) - np.multiply(y, u)), r)
         v_z   = w
         if verbose:
-            print('Checking rotational support (v_phi > 2 * v_r)...')
+            print('Checking rotational support (v_phi > 2 * v_r)...', flush=True)
         # Gas is rotationally supported?
         is_rotating = np.greater(np.abs(v_phi), 2.0 * np.abs(v_r))
         if verbose:
-            print('...found {0:d} particles.'.format(np.sum(is_rotating)))
-            print('Checking hydrostatic equilibrium (v_phi > 2 * v_z)...')
+            print('...found {0:d} particles.'.format(np.sum(is_rotating)), flush=True)
+            print('Checking hydrostatic equilibrium (v_phi > 2 * v_z)...', flush=True)
         # Gas is in hydrostatic equilibrium?
         is_hydrostatic = np.greater(np.abs(v_phi), 2.0 * np.abs(v_z))
         if verbose:
-            print('...found {0:d} particles.'.format(np.sum(is_hydrostatic)))
-            print('Checking if rotational support exceeds thermal pressure support...')
+            print('...found {0:d} particles.'.format(np.sum(is_hydrostatic)), flush=True)
+            print('Checking if rotational support exceeds thermal pressure support...', flush=True)
         # Rotational support is greater than thermal pressure support?
         is_rotationally_supported = np.greater(0.5 * np.multiply(self.p0_rho[mask_r_max] * self.rho_unit,
                                                                 (v_phi * self.v_unit)**2),
                                                2.0 * self.p0_P[mask_r_max] * self.P_unit)
         if verbose:
-            print('...found {0:d} particles.'.format(np.sum(is_rotationally_supported)))
-            print('Checking density threshold (n_H > {0:.1g} cm^-3)...'.format(n_H_min))
+            print('...found {0:d} particles.'.format(np.sum(is_rotationally_supported)), flush=True)
+            print('Checking density threshold (n_H > {0:.1g} cm^-3)...'.format(n_H_min), flush=True)
         # Satisfies density threshold?
         is_dense = np.greater(self.p0_n_H[mask_r_max], n_H_min)  # Can experiment with density threshold.
         # Combined boolean mask.
         mask_all = np.logical_and(np.logical_and(np.logical_and(is_dense, is_rotating), is_hydrostatic),
                                   is_rotationally_supported)
         if verbose:
-            print('...found {0:d} particles.'.format(np.sum(is_dense)))
-            print('Number of particles satisfying all checks: {0:d}'.format(np.sum(mask_all)))
+            print('...found {0:d} particles.'.format(np.sum(is_dense)), flush=True)
+            print('Number of particles satisfying all checks: {0:d}'.format(np.sum(mask_all)), flush=True)
         disk_ids = g_ids_in_sphere[mask_all]
 
         # Save disk IDs and relevant disk identification parameters to HDF5 file.
@@ -1169,7 +1173,7 @@ class Snapshot:
                 diskdir = self.snapdir
             fname_disk = os.path.join(diskdir, 'snapshot_{0:03d}_{1:s}.hdf5'.format(self.get_i(), disk_name))
             if verbose:
-                print('Saving to {0:s}...'.format(fname_disk))
+                print('Saving to {0:s}...'.format(fname_disk), flush=True)
             f_disk = h5py.File(fname_disk, 'w')
             # Header.
             header_disk = f_disk.create_dataset('header', (1,))
