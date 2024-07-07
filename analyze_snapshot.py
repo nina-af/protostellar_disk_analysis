@@ -1010,7 +1010,7 @@ class Snapshot:
     # Identify gas particles in gas_ids belonging to disk around sink_ids.
     def get_disk(self, sink_ids, gas_ids, r_max_AU=500.0, n_H_min=1e9, verbose=False,
                  disk_name='', save_disk=False, diskdir=None, get_L_vec=False, USE_IDX=False,
-                 check_nearest_neighbor=True):
+                 check_nearest_neighbor=True, set_rmax_half=False):
         """
         Identifies subset of specified gas particles belonging to disk
         around specified sink particles based upon the following checks:
@@ -1086,6 +1086,10 @@ class Snapshot:
             r_near_AU   = r_near_cgs * self.cm_to_AU
             if verbose:
                 print('Found nearest sink at r = {0:.1f} AU.'.format(r_near_AU), flush=True)
+            if set_rmax_half:
+                if verbose:
+                print('Using half distance to nearest sink particle...', flush=True)
+                r_near_code /= 2.0
             if r_max_code < r_near_code:
                 r_max = r_max_code
                 if verbose:
