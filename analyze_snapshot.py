@@ -1088,7 +1088,7 @@ class Snapshot:
                 print('Found nearest sink at r = {0:.1f} AU.'.format(r_near_AU), flush=True)
             if set_rmax_half:
                 if verbose:
-                print('Using half distance to nearest sink particle...', flush=True)
+                    print('Using half distance to nearest sink particle...', flush=True)
                 r_near_code /= 2.0
             if r_max_code < r_near_code:
                 r_max = r_max_code
