@@ -128,6 +128,9 @@ class Disk:
         # Snapshot object.
         self.Snapshot = self.get_snapshot(self.cloud)  
 
+        # Time.
+        self.time = self.Snapshot.t
+
         # Unit conversions from parent snapshot.
         self.G_code          = self.Snapshot.G_code
         self.l_unit          = self.Snapshot.l_unit
@@ -259,7 +262,7 @@ class Disk:
         header.attrs.create('n_H_min', self.n_H_min, dtype=float)
         header.attrs.create('truncation_radius_AU', self.truncation_radius_AU, dtype=float)
         
-        header.attrs.create('time', self.t, dtype=float)
+        header.attrs.create('time', self.time, dtype=float)
         header.attrs.create('m_unit', self.m_unit, dtype=float)
         header.attrs.create('l_unit', self.l_unit, dtype=float)
         header.attrs.create('v_unit', self.v_unit, dtype=float)
