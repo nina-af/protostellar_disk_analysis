@@ -248,7 +248,57 @@ class Disk:
         # Bin centers.
         x_vals = (y_bin_edges[:-1] + y_bin_edges[1:])/2
         return x_vals, y_mean
-
+    
+    def write_to_file(self, fname):
+        
+        f      = h5py.File(fname, 'w')
+        header = f.create_dataset('header', (1,))
+        
+        header.attrs.create('primary_sink', self.primary_sink, dtype=int)
+        header.attrs.create('sink_ids', self.sink_ids, dtype=int)
+        header.attrs.create('n_H_min', self.n_H_min, dtype=float)
+        header.attrs.create('truncation_radius_AU', self.truncation_radius_AU, dtype=float)
+        
+        header.attrs.create('time', self.t, dtype=float)
+        header.attrs.create('m_unit', self.m_unit, dtype=float)
+        header.attrs.create('l_unit', self.l_unit, dtype=float)
+        header.attrs.create('v_unit', self.v_unit, dtype=float)
+        header.attrs.create('t_unit', self.t_unit, dtype=float)
+        header.attrs.create('x_cm', self.x_cm, dtype=float)
+        header.attrs.create('v_cm', self.v_cm, dtype=float)
+        header.attrs.create('L_vec', self.L_unit_vec * self.L_mag, dtype=float)
+        header.attrs.create('rotation_matrix', self.A, dtype=float)
+        
+        # If USE_IDX, disk_ids are actually disk_idx.
+        f.create_dataset('disk_ids', data=self.disk_ids, dtype=int)
+        f.create_dataset('mass', data=self.m, dtype=float)
+        f.create_dataset('X_orig', data=np.vstack((self.x, self.y, self.z)), dtype=float)
+        f.create_dataset('V_orig', data=np.vstack((self.u, self.v, self.w)), dtype=float)
+        f.create_dataset('B_orig', data=np.vstack((self.Bx, self.By, self.Bz)), dtype=float)
+        f.create_dataset('X_cm', data=self.X_cm, dtype=float)
+        f.create_dataset('V_cm', data=self.V_cm, dtype=float)
+        f.create_dataset('B_cm', data=self.B_cm, dtype=float)
+        f.create_dataset('X_cyl', data=self.X_cyl, dtype=float)
+        f.create_dataset('V_cyl', data=self.V_cyl, dtype=float)
+        f.create_dataset('B_cyl', data=self.B_cyl, dtype=float)
+        f.create_dataset('B_mag', data=self.B_mag, dtype=float)
+        f.create_dataset('rho', data=self.rho, dtype=float)
+        f.create_dataset('hsml', data=self.hsml, dtype=float)
+        f.create_dataset('E_int', data=self.E_int, dtype=float)
+        f.create_dataset('P', data=self.P, dtype=float)
+        f.create_dataset('cs', data=self.cs, dtype=float)
+        f.create_dataset('n_H', data=self.n_H, dtype=float)
+        f.create_dataset('Ne', data=self.Ne, dtype=float)
+        f.create_dataset('mean_molecular_weight', data=self.mean_molecular_weight, dtype=float)
+        f.create_dataset('temperature', data=self.temperature, dtype=float)
+        f.create_dataset('dust_temp', data=self.dust_temp, dtype=float)
+        f.create_dataset('eta_O', data=self.eta_O, dtype=float)
+        f.create_dataset('eta_H', data=self.eta_H, dtype=float)
+        f.create_dataset('eta_A', data=self.eta_A, dtype=float)
+        f.create_dataset('omega', data=self.omega, dtype=float)
+        
+        f.close()
+        
 class Snapshot:
     """
     Class for reading gas/sink particle data from HDF5 snapshot files.
