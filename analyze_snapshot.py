@@ -98,8 +98,9 @@ class Disk:
 
     def __init__(self, fname, cloud, USE_IDX=False):
         
-        self.fname = fname
-        self.cloud = cloud
+        self.fname   = fname
+        self.cloud   = cloud
+        self.USE_IDX = USE_IDX  # Use array indices instead of (non-unique) particle IDs.
 
         # Read from saved HDF5 file.
         with h5py.File(fname, 'r') as f:
@@ -249,7 +250,14 @@ class Disk:
         x_vals = (y_bin_edges[:-1] + y_bin_edges[1:])/2
         return x_vals, y_mean
     
-    def write_to_file(self, fname):
+    def write_to_file(self, fname, density_cut=False, n_H_min=1e9):
+        
+        mask_nH  = None
+        idx_d    = np.isin(self.disk_ids, self.disk_ids)
+
+        if density_cut:
+            mask_nH = (self.n_H >= n_H_min)
+            idx_d   = idx_d[mask_nH]
         
         f      = h5py.File(fname, 'w')
         header = f.create_dataset('header', (1,))
@@ -270,32 +278,32 @@ class Disk:
         header.attrs.create('rotation_matrix', self.A, dtype=float)
         
         # If USE_IDX, disk_ids are actually disk_idx.
-        f.create_dataset('disk_ids', data=self.disk_ids, dtype=int)
-        f.create_dataset('mass', data=self.m, dtype=float)
-        f.create_dataset('X_orig', data=np.vstack((self.x, self.y, self.z)), dtype=float)
-        f.create_dataset('V_orig', data=np.vstack((self.u, self.v, self.w)), dtype=float)
-        f.create_dataset('B_orig', data=np.vstack((self.Bx, self.By, self.Bz)), dtype=float)
-        f.create_dataset('X_cm', data=self.X_cm, dtype=float)
-        f.create_dataset('V_cm', data=self.V_cm, dtype=float)
-        f.create_dataset('B_cm', data=self.B_cm, dtype=float)
-        f.create_dataset('X_cyl', data=self.X_cyl, dtype=float)
-        f.create_dataset('V_cyl', data=self.V_cyl, dtype=float)
-        f.create_dataset('B_cyl', data=self.B_cyl, dtype=float)
-        f.create_dataset('B_mag', data=self.B_mag, dtype=float)
-        f.create_dataset('rho', data=self.rho, dtype=float)
-        f.create_dataset('hsml', data=self.hsml, dtype=float)
-        f.create_dataset('E_int', data=self.E_int, dtype=float)
-        f.create_dataset('P', data=self.P, dtype=float)
-        f.create_dataset('cs', data=self.cs, dtype=float)
-        f.create_dataset('n_H', data=self.n_H, dtype=float)
-        f.create_dataset('Ne', data=self.Ne, dtype=float)
-        f.create_dataset('mean_molecular_weight', data=self.mean_molecular_weight, dtype=float)
-        f.create_dataset('temperature', data=self.temperature, dtype=float)
-        f.create_dataset('dust_temp', data=self.dust_temp, dtype=float)
-        f.create_dataset('eta_O', data=self.eta_O, dtype=float)
-        f.create_dataset('eta_H', data=self.eta_H, dtype=float)
-        f.create_dataset('eta_A', data=self.eta_A, dtype=float)
-        f.create_dataset('omega', data=self.omega, dtype=float)
+        f.create_dataset('disk_ids', data=self.disk_ids[idx_d], dtype=int)
+        f.create_dataset('mass', data=self.m[idx_d], dtype=float)
+        f.create_dataset('X_orig', data=np.vstack((self.x, self.y, self.z))[idx_d, :], dtype=float)
+        f.create_dataset('V_orig', data=np.vstack((self.u, self.v, self.w))[idx_d, :], dtype=float)
+        f.create_dataset('B_orig', data=np.vstack((self.Bx, self.By, self.Bz))[idx_d, :], dtype=float)
+        f.create_dataset('X_cm', data=self.X_cm[idx_d, :], dtype=float)
+        f.create_dataset('V_cm', data=self.V_cm[idx_d, :], dtype=float)
+        f.create_dataset('B_cm', data=self.B_cm[idx_d, :], dtype=float)
+        f.create_dataset('X_cyl', data=self.X_cyl[idx_d, :], dtype=float)
+        f.create_dataset('V_cyl', data=self.V_cyl[idx_d, :], dtype=float)
+        f.create_dataset('B_cyl', data=self.B_cyl[idx_d, :], dtype=float)
+        f.create_dataset('B_mag', data=self.B_mag[idx_d], dtype=float)
+        f.create_dataset('rho', data=self.rho[idx_d], dtype=float)
+        f.create_dataset('hsml', data=self.hsml[idx_d], dtype=float)
+        f.create_dataset('E_int', data=self.E_int[idx_d], dtype=float)
+        f.create_dataset('P', data=self.P[idx_d], dtype=float)
+        f.create_dataset('cs', data=self.cs[idx_d], dtype=float)
+        f.create_dataset('n_H', data=self.n_H[idx_d], dtype=float)
+        f.create_dataset('Ne', data=self.Ne[idx_d], dtype=float)
+        f.create_dataset('mean_molecular_weight', data=self.mean_molecular_weight[idx_d], dtype=float)
+        f.create_dataset('temperature', data=self.temperature[idx_d], dtype=float)
+        f.create_dataset('dust_temp', data=self.dust_temp[idx_d], dtype=float)
+        f.create_dataset('eta_O', data=self.eta_O[idx_d], dtype=float)
+        f.create_dataset('eta_H', data=self.eta_H[idx_d], dtype=float)
+        f.create_dataset('eta_A', data=self.eta_A[idx_d], dtype=float)
+        f.create_dataset('omega', data=self.omega[idx_d], dtype=float)
         
         f.close()
         
