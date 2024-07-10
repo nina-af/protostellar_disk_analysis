@@ -253,14 +253,20 @@ class Disk:
         x_vals = (y_bin_edges[:-1] + y_bin_edges[1:])/2
         return x_vals, y_mean
     
-    def write_to_file(self, fname, density_cut=False, n_H_min=1e9):
+    def write_to_file(self, fname, density_cut=False, n_H_min=1e9, verbose=True):
         
         mask_nH  = None
         idx_d    = np.isin(self.disk_ids, self.disk_ids)
 
         if density_cut:
-            mask_nH = (self.n_H >= n_H_min)
-            idx_d   = idx_d[mask_nH]
+            if verbose:
+                print('Number of disk particles before density cut: {0:d}'.format(np.sum(idx_d)), flush=True)
+            mask_nH  = (self.n_H >= n_H_min)
+            #mask_all = np.union1d(idx_d, mask_nH)
+            mask_all = np.logical_and(idx_d, mask_nH)
+            idx_d    = mask_all
+            if verbose:
+                print('Number of disk particles after density cut: {0:d}'.format(np.sum(idx_d)), flush=True)
         
         f      = h5py.File(fname, 'w')
         header = f.create_dataset('header', (1,))
@@ -283,15 +289,15 @@ class Disk:
         # If USE_IDX, disk_ids are actually disk_idx.
         f.create_dataset('disk_ids', data=self.disk_ids[idx_d], dtype=int)
         f.create_dataset('mass', data=self.m[idx_d], dtype=float)
-        f.create_dataset('X_orig', data=np.vstack((self.x, self.y, self.z))[idx_d, :], dtype=float)
-        f.create_dataset('V_orig', data=np.vstack((self.u, self.v, self.w))[idx_d, :], dtype=float)
-        f.create_dataset('B_orig', data=np.vstack((self.Bx, self.By, self.Bz))[idx_d, :], dtype=float)
-        f.create_dataset('X_cm', data=self.X_cm[idx_d, :], dtype=float)
-        f.create_dataset('V_cm', data=self.V_cm[idx_d, :], dtype=float)
-        f.create_dataset('B_cm', data=self.B_cm[idx_d, :], dtype=float)
-        f.create_dataset('X_cyl', data=self.X_cyl[idx_d, :], dtype=float)
-        f.create_dataset('V_cyl', data=self.V_cyl[idx_d, :], dtype=float)
-        f.create_dataset('B_cyl', data=self.B_cyl[idx_d, :], dtype=float)
+        f.create_dataset('X_orig', data=np.vstack((self.x, self.y, self.z))[:, idx_d], dtype=float)
+        f.create_dataset('V_orig', data=np.vstack((self.u, self.v, self.w))[:, idx_d], dtype=float)
+        f.create_dataset('B_orig', data=np.vstack((self.Bx, self.By, self.Bz))[:, idx_d], dtype=float)
+        f.create_dataset('X_cm', data=self.X_cm[:, idx_d], dtype=float)
+        f.create_dataset('V_cm', data=self.V_cm[:, idx_d], dtype=float)
+        f.create_dataset('B_cm', data=self.B_cm[:, idx_d], dtype=float)
+        f.create_dataset('X_cyl', data=self.X_cyl[:, idx_d], dtype=float)
+        f.create_dataset('V_cyl', data=self.V_cyl[:, idx_d], dtype=float)
+        f.create_dataset('B_cyl', data=self.B_cyl[:, idx_d], dtype=float)
         f.create_dataset('B_mag', data=self.B_mag[idx_d], dtype=float)
         f.create_dataset('rho', data=self.rho[idx_d], dtype=float)
         f.create_dataset('hsml', data=self.hsml[idx_d], dtype=float)
