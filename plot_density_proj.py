@@ -26,6 +26,17 @@ def find_nearest_size(mass_value, mass_array_min, mass_array_max, mass_array_ste
     
     idx   = (np.abs(mass_array - mass_value)).argmin()
     return size_array[idx]
+
+# Sort sink particle IDs according to custom ordering p5_ids_sort.
+def sort_ids(p5_ids, sink_order_list):
+    n_sinks  = len(p5_ids)
+    idx_sort = []
+    for i in range(n_sinks):
+        sink_id = sink_order_list[i]
+        idx_s   = np.argwhere(p5_ids == sink_id)[0][0]
+        idx_sort.append(idx_s)
+    idx_sort = np.asarray(idx_sort)
+    return idx_sort
     
 def plot_density_proj(s, verbose=False, **kwargs):
     
@@ -61,6 +72,18 @@ def plot_density_proj(s, verbose=False, **kwargs):
         if kwargs['unit_vec'] is not None:
             plot_unit_vec = True
             unit_vec = kwargs['unit_vec']
+            
+    # Plot sink particles in color.
+    plot_sink_colors = False
+    sink_color_list  = []
+    sink_order_list  = []
+    if 'plot_sink_colors' in kwargs:
+        if kwargs['plot_sink_colors'] is not None:
+            plot_sink_colors = kwargs['plot_sink_colors']
+        if ('sink_color_list' in kwargs) and (kwargs['sink_color_list'] is not None):
+            sink_color_list = kwargs['sink_color_list']
+        if ('sink_order_list' in kwargs) and (kwargs['sink_order_list'] is not None):
+            sink_order_list = kwargs['sink_order_list']
 
     yt.set_log_level(50)
     unit_base = {'UnitMagneticField_in_gauss': s.B_unit,
@@ -77,6 +100,13 @@ def plot_density_proj(s, verbose=False, **kwargs):
         plot_particles = True
         coords         = ad['PartType5', 'Coordinates']
         masses         = ad['PartType5', 'Masses']
+        all_sink_ids   = ad['PartType5', 'ParticleIDs']
+        # Sort sink particles if plotting in specific colors.
+        if plot_sink_colors:
+            idx_sort = sort_ids(all_sink_ids, sink_order_list)
+            all_sink_ids = all_sink_ids[idx_sort]
+            coords       = coords[idx_sort, :]
+            masses       = masses[idx_sort]
     
     # Set plot coordinate origin; default to box center.
     if kwargs['set_center'] == 'custom_center':
@@ -148,7 +178,8 @@ def plot_density_proj(s, verbose=False, **kwargs):
         prj.set_xlabel(title[i]); prj.set_ylabel(title[1])
         
         if plot_particles:
-            for j, particle in enumerate(ad[('PartType5', 'Coordinates')]):
+            #for j, particle in enumerate(ad[('PartType5', 'Coordinates')]):
+            for j, particle in enumerate(coords):
 
                 # Check to make sure particles are within plotting window.
                 dx     = np.abs(c.v - coords[j, :].v)
@@ -158,7 +189,14 @@ def plot_density_proj(s, verbose=False, **kwargs):
                 
                 m_sink = masses[j]
                 scale  = find_nearest_size(m_sink.v, min_size, max_size, mass_step)
-                color  = 'white'
+                
+                if plot_sink_colors:
+                    color = sink_color_list[j]
+                    #print(int(all_sink_ids[j].v))
+                    #print(color)
+                    #print('sink {0:d}: color = {1:s}'.format(int(all_sink_ids[j].v), color))
+                else:
+                    color = 'white'
                 
                 prj.annotate_marker(particle, marker='o', plot_args={'s':scale, 'color':'black'})
                 prj.annotate_marker(particle, marker='o', plot_args={'s':scale, 'color':color, 'linewidth':1.5,
