@@ -41,30 +41,51 @@ def sort_ids(p5_ids, sink_order_list):
 def plot_density_proj(s, verbose=False, **kwargs):
     
     # Specify default plotting values: zoom, zmin, zmax, min_size, max_size, mass_step.
-    if kwargs['zoom'] is None:
-        zoom = 5
+    if 'zoom' in kwargs:
+        if kwargs['zoom'] is None:
+            zoom = 200
+        else:
+            zoom = kwargs['zoom']
+    else: 
+        zoom = 200
+    if 'zmin' in kwargs:
+        if kwargs['zmin'] is None:
+            zmin = 2e-1
+        else:
+            zmin = kwargs['zmin']
     else:
-        zoom = kwargs['zoom']
-    if kwargs['zmin'] is None:
-        zmin = 1e-2
+        zmin = 2e-1
+    if 'zmax' in kwargs:
+        if kwargs['zmax'] is None:
+            zmax = 2e1
+        else:
+            zmax = kwargs['zmax']
+    if 'min_size' in kwargs:
+        if kwargs['min_size'] is None:
+            min_size = 0.1
+        else:
+            min_size = kwargs['min_size']
     else:
-        zmin = kwargs['zmin']
-    if kwargs['zmax'] is None:
-        zmax = 1e0
-    else:
-        zmax = kwargs['zmax']
-    if kwargs['min_size'] is None:
         min_size = 0.1
+    if 'max_size' in kwargs:
+        if kwargs['max_size'] is None:
+            max_size = 5.0
+        else:
+            max_size = kwargs['max_size']
     else:
-        min_size = kwargs['min_size']
-    if kwargs['max_size'] is None:
         max_size = 5.0
+    if 'mass_step' in kwargs:
+        if kwargs['mass_step'] is None:
+            mass_step = 0.5
+        else:
+            mass_step = kwargs['mass_step']
     else:
-        max_size = kwargs['max_size']
-    if kwargs['mass_step'] is None:
         mass_step = 0.5
-    else:
-        mass_step = kwargs['mass_step']
+    if 'cmap' in kwargs:
+        if kwargs['cmap'] is None:
+            cmap = 'plasma'
+        else:
+            cmap = kwargs['cmap']
 
     # Plot line specified by 'unit_vec' array.
     plot_unit_vec = False
@@ -170,7 +191,7 @@ def plot_density_proj(s, verbose=False, **kwargs):
         else:
             prj = yt.ProjectionPlot(ds, d, field, center=c)
         
-        prj.set_cmap(field=field, cmap='plasma')
+        prj.set_cmap(field=field, cmap=cmap)
         prj.set_colorbar_label(field, zlabel)
         prj.set_zlim(field=field, zmin=zmin, zmax=zmax)
         prj.zoom(zoom); prj.set_axes_unit('AU'); prj.set_font_size(15.0)   
@@ -213,10 +234,13 @@ def plot_density_proj(s, verbose=False, **kwargs):
         
     f_str = '{0:.3f} Myr'.format(t_myrs)
     t_str = '{0:.1f} t_cross'.format(s.t / s.t_cross0)
-    if kwargs['label'] is None:
-        l_str = ''
+    if 'label' in kwargs:
+        if kwargs['label'] is None:
+            l_str = ''
+        else:
+            l_str = '{0:s}'.format(kwargs['label'])
     else:
-        l_str = '{0:s}'.format(kwargs['label'])
+        l_str = ''
     fig.text(0.83, 1.1, f_str, color='white', size=20)
     fig.text(0.83, 1.05, t_str, color='white', size=20)
     fig.text(0.11, 1.1, l_str, color='white', size=20)
@@ -237,31 +261,57 @@ def plot_density_proj(s, verbose=False, **kwargs):
 def plot_density_proj_disk(s, disk_name, disk_ids, verbose=False, USE_IDX=False, **kwargs):
 
     # Specify default plotting values: zoom, zmin, zmax, min_size, max_size, mass_step.
-    if kwargs['zoom'] is None:
+    if 'zoom' in kwargs:
+        if kwargs['zoom'] is None:
+            zoom = 200
+        else:
+            zoom = kwargs['zoom']
+    else: 
         zoom = 200
+    if 'zmin' in kwargs:
+        if kwargs['zmin'] is None:
+            zmin = 2e-1
+        else:
+            zmin = kwargs['zmin']
     else:
-        zoom = kwargs['zoom']
-    if kwargs['zmin'] is None:
         zmin = 2e-1
+    if 'zmax' in kwargs:
+        if kwargs['zmax'] is None:
+            zmax = 2e1
+        else:
+            zmax = kwargs['zmax']
+    if 'min_size' in kwargs:
+        if kwargs['min_size'] is None:
+            min_size = 0.1
+        else:
+            min_size = kwargs['min_size']
     else:
-        zmin = kwargs['zmin']
-    if kwargs['zmax'] is None:
-        zmax = 2e1
-    else:
-        zmax = kwargs['zmax']
-    if kwargs['min_size'] is None:
         min_size = 0.1
+    if 'max_size' in kwargs:
+        if kwargs['max_size'] is None:
+            max_size = 5.0
+        else:
+            max_size = kwargs['max_size']
     else:
-        min_size = kwargs['min_size']
-    if kwargs['max_size'] is None:
         max_size = 5.0
+    if 'mass_step' in kwargs:
+        if kwargs['mass_step'] is None:
+            mass_step = 0.5
+        else:
+            mass_step = kwargs['mass_step']
     else:
-        max_size = kwargs['max_size']
-    if kwargs['mass_step'] is None:
         mass_step = 0.5
-    else:
-        mass_step = kwargs['mass_step']
-
+    if 'cmap' in kwargs:
+        if kwargs['cmap'] is None:
+            cmap = 'plasma'
+        else:
+            cmap = kwargs['cmap']
+    if 'cmap2' in kwargs:
+        if kwargs['cmap2'] is None:
+            cmap2 = 'Blues'
+        else:
+            cmap2 = kwargs['cmap2']
+            
     # Plot line specified by 'unit_vec' array.
     plot_unit_vec = False
     if 'unit_vec' in kwargs:
@@ -367,12 +417,12 @@ def plot_density_proj_disk(s, disk_name, disk_ids, verbose=False, USE_IDX=False,
             prj1 = yt.ProjectionPlot(ds, d, field, center=c)
             prj2 = yt.ProjectionPlot(ds, d, field, center=c)
 
-        prj1.set_cmap(field=field_1, cmap='plasma'); prj1.set_colorbar_label(field_1, zlabel)
+        prj1.set_cmap(field=field_1, cmap=cmap); prj1.set_colorbar_label(field_1, zlabel)
         prj1.set_zlim(field=field_1, zmin=zmin, zmax=zmax)
         prj1.zoom(zoom); prj1.set_axes_unit('AU'); prj1.set_font_size(15.0)
         prj1.set_xlabel(title[i]); prj1.set_ylabel(title[1])
 
-        prj2.set_cmap(field=field_2, cmap='Blues'); prj2.set_colorbar_label(field_2, zlabel)
+        prj2.set_cmap(field=field_2, cmap=cmap2); prj2.set_colorbar_label(field_2, zlabel)
         #prj2.set_zlim(field=field, zmin=zmin, zmax=zmax)
         prj2.zoom(zoom); prj2.set_axes_unit('AU'); prj2.set_font_size(15.0)
         prj2.set_xlabel(title[i]); prj2.set_ylabel(title[1])
@@ -408,18 +458,27 @@ def plot_density_proj_disk(s, disk_name, disk_ids, verbose=False, USE_IDX=False,
 
     f_str = '{0:.3f} Myr'.format(t_myrs)
     t_str = '{0:.1f} t_cross'.format(s.t / s.t_cross0)
-    if kwargs['label'] is None:
+    if 'label' in kwargs:
+        if kwargs['label'] is None:
+            l_str = ''
+        else:
+            l_str = '{0:s}'.format(kwargs['label'])
+    else:
         l_str = ''
+    if 'sink_label' in kwargs:
+        if kwargs['sink_label'] is None:
+            s_str = ''
+        else:
+            s_str = '{0:s}'.format(kwargs['sink_label'])
     else:
-        l_str = '{0:s}'.format(kwargs['label'])
-    if kwargs['sink_label'] is None:
         s_str = ''
+    if 'extra_label' in kwargs:
+        if kwargs['extra_label'] is None:
+            e_str = ''
+        else:
+            e_str = '{0:s}'.format(kwargs['extra_label'])
     else:
-        s_str = '{0:s}'.format(kwargs['sink_label'])
-    if kwargs['extra_label'] is None:
         e_str = ''
-    else:
-        e_str = '{0:s}'.format(kwargs['extra_label'])
     fig.text(0.87, 1.45, f_str, color='white', size=20)
     fig.text(0.87, 1.40, t_str, color='white', size=20)
     fig.text(0.11, 1.45, l_str, color='white', size=20)
