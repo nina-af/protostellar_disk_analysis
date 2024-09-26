@@ -1077,7 +1077,7 @@ class Snapshot:
     # Identify gas particles in gas_ids belonging to disk around sink_ids.
     def get_disk(self, sink_ids, gas_ids, r_max_AU=500.0, n_H_min=1e9, verbose=False,
                  disk_name='', save_disk=False, diskdir=None, get_L_vec=False, USE_IDX=False,
-                 check_nearest_neighbor=True, set_rmax_half=False):
+                 check_nearest_neighbor=True, set_rmax_half=False, return_masks=False):
         """
         Identifies subset of specified gas particles belonging to disk
         around specified sink particles based upon the following checks:
@@ -1236,6 +1236,10 @@ class Snapshot:
             print('...found {0:d} particles.'.format(np.sum(is_dense)), flush=True)
             print('Number of particles satisfying all checks: {0:d}'.format(np.sum(mask_all)), flush=True)
         disk_ids = g_ids_in_sphere[mask_all]
+        
+        mask_dict = {'mask_init':mask_init, 'mask_r_max':mask_r_max, 'g_ids_in_sphere':g_ids_in_sphere,
+                     'is_rotating':is_rotating, 'is_hydrostatic':is_hydrostatic, 
+                     'is_rotationally_supported':is_rotationally_supported, 'is_dense':is_dense, 'mask_all':mask_all}
 
         # Save disk IDs and relevant disk identification parameters to HDF5 file.
         if save_disk:
@@ -1275,7 +1279,10 @@ class Snapshot:
                 f_disk.create_dataset('disk_ids', data=np.asarray(disk_ids))
             f_disk.close()
 
-        return disk_ids
+        if return_masks:
+            return disk_ids, mask_dict
+        else:
+            return disk_ids
 
     # Calculate dust-to-metals ratio, normalized to solar value of 1/2.
     def _return_dust_to_metals_ratio_vs_solar(self, gas_ids, defined='RT_INFRARED', USE_IDX=False):
