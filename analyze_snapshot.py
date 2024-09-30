@@ -468,6 +468,7 @@ class Snapshot:
             # For convenience, coordinates and velocities in a (n_gas, 3) array.
             self.p0_coord = np.vstack((self.p0_x, self.p0_y, self.p0_z)).T
             self.p0_vel   = np.vstack((self.p0_u, self.p0_v, self.p0_w)).T
+            self.p0_mag   = np.vstack((self.p0_Bx, self.p0_By, self.p0_Bz)).T
 
             # PartType5 data.
             if self.stars_exist:
