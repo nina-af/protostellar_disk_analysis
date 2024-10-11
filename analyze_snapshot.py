@@ -1464,7 +1464,7 @@ class Snapshot:
             if verbose:
                 print('Pickle file exists:')
                 print(fname_pkl)
-                load_data_from_pkl = True
+            load_data_from_pkl = True
         else:
             if verbose:
                 print('No pickle file found. Getting all field data from snapshot...')
