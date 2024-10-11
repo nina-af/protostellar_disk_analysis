@@ -5,7 +5,7 @@ import h5py
 import numpy as np
 from scipy import stats
 
-import pickle as pkl
+import pickle as pk
 
 import yt
 import unyt
