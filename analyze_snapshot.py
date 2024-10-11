@@ -5,6 +5,11 @@ import h5py
 import numpy as np
 from scipy import stats
 
+import pickle as pkl
+
+import yt
+import unyt
+
 class Cloud:
     """
     Class for calculating bulk cloud properties.
@@ -1426,6 +1431,123 @@ class Snapshot:
         #eta_A = self._DMAX(0, eta_A)
 
         return eta_O, eta_H, eta_A
+    
+    # Use YT to get SlicePlot data and save to pickle file, for making nice
+    # paper figures.
+    def get_yt_slc_data(self, zoom=200, ax='x', field_list=[('gas', 'density')], 
+                        pickle_data=True, pickdir=None,
+                        center_sink_ids=None, verbose=True):
+    
+        # Pickle name.
+        snap_name = self.fname.rsplit('/')[-1].split('.')[0]
+        pick_name = '{0:s}_zoom_{1:d}_ax_{2:s}_slc.pkl'.format(snap_name, zoom, ax)
+    
+        load_data_from_pkl = False
+        get_new_data       = True
+        new_field_list     = field_list
+    
+        # Save plot data as dictionary in pickle file.
+        plot_data = {}
+    
+        # First check if pickle file with plot data already exists.
+        if pickdir is None:
+            pickdir = os.path.join(self.snapdir, 'pickle/')
+        if not os.path.exists(pickdir):
+            if verbose:
+                print('Pickle directory doesn\'t exist; creating pickle directory...')
+            os.mkdir(pickdir)
+            if verbose:
+                print(pickdir)
+        # Check if pickle file already exists.
+        fname_pkl = os.path.join(pickdir, pick_name)
+        if os.path.isfile(fname_pkl):
+            if verbose:
+                print('Pickle file exists:')
+                print(fname_pkl)
+                load_data_from_pkl = True
+        else:
+            if verbose:
+                print('No pickle file found. Getting all field data from snapshot...')
+        # Check if desired fields are in pickle file.
+        if load_data_from_pkl:
+            with open(fname_pkl, "rb") as f_pkl:
+                if verbose:
+                    print('Loading existing pickle file...')
+                plot_data_pkl = pk.load(f_pkl)
+            plot_data = plot_data_pkl
+            pkl_keys  = list(plot_data_pkl.keys())
+            if verbose:
+                print('Current keys in pickle dict:')
+                print(pkl_keys)
+            des_keys = []
+            for field_tuple in field_list:
+                des_keys.append(field_tuple[-1])
+            fields_to_add   = []
+            new_field_count = 0
+            for des_key in des_keys:
+                if des_key not in pkl_keys:
+                    new_field_count += 1
+                    fields_to_add.append(('gas', des_key))
+            if (new_field_count == 0):
+                get_new_data = False 
+                if verbose:
+                    print('All fields found in pickle file; returning stored plot dict...')
+            else:
+                new_field_list = fields_to_add
+                if verbose:
+                    print('Getting new field data: ')
+                    print(fields_to_add)
+            
+        if get_new_data:
+            if verbose:
+                print('Using YT to get new plot data...')
+            yt.set_log_level(50)
+            unit_base = {'UnitMagneticField_in_gauss': self.B_unit,
+                        'UnitLength_in_cm': self.l_unit,
+                        'UnitMass_in_g': self.m_unit,
+                        'UnitVelocity_in_cm_per_s': self.v_unit}
+            ds = yt.load(self.fname, unit_base=unit_base); ad = ds.all_data()
+            # Using snapshots rotated to disk coordinate frame.
+            if center_sink_ids is None:
+                c  = ds.arr([0, 0, 0], 'code_length')
+            # Using unprocessed GIZMO HDF5 snapshot files.
+            else:
+                # Get sink center of mass.
+                m, cm_x, cm_v = self.sink_center_of_mass(self.p5_ids)
+                c             = ds.arr(cm_x, 'code_length')
+    
+            # Get data region.
+            half_width = ds.quan(self.box_size/(2.0 * zoom), 'code_length')
+            left_edge  = c - half_width
+            right_edge = c + half_width
+            box        = ds.region(c, left_edge, right_edge, fields=field_list, ds=ds)
+    
+            # Get slice plot data.
+            slc = yt.SlicePlot(ds, ax, new_field_list, center=c, data_source=box)
+            slc.set_axes_unit('AU')
+            slc.zoom(zoom)
+    
+            # Need to plot/save figures to save data.
+            tempname = os.path.join(pickdir, 'temp_slc.png')
+            slc.save(tempname)
+
+            for i, field_tuple in enumerate(list(slc.plots)):
+                field_name = field_tuple[1]
+                plot = slc.plots[list(slc.plots)[i]]
+                ax   = plot.axes
+                img  = ax.images[0]
+                data = np.asarray(img.get_array())
+                plot_data[field_name] = data
+        
+            plot_data['xlim']  = slc.xlim
+            plot_data['ylim']  = slc.ylim
+            plot_data['width'] = slc.width
+    
+            # Pickle new plot data:
+            if pickle_data:
+                with open(fname_pkl, 'wb') as f_out:
+                    pk.dump(plot_data, f_out)
+        return plot_data
 
     # Utility functions.
     def weight_avg(self, data, weights):
