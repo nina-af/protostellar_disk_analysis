@@ -1,0 +1,397 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+import h5py
+
+import pickle as pk
+import numpy as np
+
+import yt
+import unyt
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+
+class YTPlotData:
+    """
+    Class for getting plot data from YT plots.
+    Plot data can be saved and read from pickle files.
+    """
+    
+    def __init__(self, fname_snap, zoom=200, ax='x', 
+                 field_list=[('gas', 'density')], 
+                 pickle_data=True, pickdir=None,
+                 center_coords=None, verbose=True, B_unit=1e4):
+        
+        # Physical constants.
+        self.PROTONMASS_CGS     = 1.6726e-24
+        self.ELECTRONMASS_CGS   = 9.10953e-28
+        self.BOLTZMANN_CGS      = 1.38066e-16
+        self.HYDROGEN_MASSFRAC  = 0.76
+        self.ELECTRONCHARGE_CGS = 4.8032e-10
+        self.C_LIGHT_CGS        = 2.9979e10
+        self.HYDROGEN_MASSFRAC  = 0.76
+        
+        # Get snapdir, snapshot name from snapshot filename.
+        snap_name = fname_snap.rsplit('/')[-1].split('.')[0]
+        snapdir   = fname_snap.rsplit(snap_name)[0]
+        
+        # Open HDF5 file and get snapshot time, units.
+        with h5py.File(fname_snap, 'r') as f:
+            header = f['Header']
+                
+            # Header attributes.
+            self.box_size = header.attrs['BoxSize']
+            self.t        = header.attrs['Time']
+        
+            # Unit conversions to cgs; note typo in header for G_code.
+            self.G_code      = header.attrs['Gravitational_Constant_In_Code_Inits']
+            if 'Internal_UnitB_In_Gauss' in header.attrs:
+                self.B_code = header.attrs['Internal_UnitB_In_Gauss']
+            else:
+                self.B_code = 2.916731267922059e-09
+            self.l_unit      = header.attrs['UnitLength_In_CGS']
+            self.m_unit      = header.attrs['UnitMass_In_CGS']
+            self.v_unit      = header.attrs['UnitVelocity_In_CGS']
+            self.B_unit      = B_unit                           # Magnetic field unit in Gauss.
+            self.t_unit      = self.l_unit / self.v_unit
+            self.t_unit_myr  = self.t_unit / (3600.0 * 24.0 * 365.0 * 1e6)
+            self.rho_unit    = self.m_unit / self.l_unit**3
+            self.nH_unit     = self.rho_unit/self.PROTONMASS_CGS
+            self.P_unit      = self.m_unit / self.l_unit / self.t_unit**2
+            self.spec_L_unit = self.l_unit * self.v_unit        # Specific angular momentum (get_net_ang_mom).
+            self.L_unit      = self.spec_L_unit * self.m_unit   # Angular momentum.
+            self.E_unit      = self.l_unit**2 / self.t_unit**2  # Energy [erg].
+            self.eta_unit    = self.l_unit**2 / self.t_unit     # Nonideal MHD diffusivities.
+            # Convert internal energy to temperature units.
+            self.u_to_temp_units = (self.PROTONMASS_CGS/self.BOLTZMANN_CGS)*self.E_unit
+
+            # Other useful conversion factors.
+            self.cm_to_AU = 6.6845871226706e-14
+            self.cm_to_pc = 3.2407792896664e-19
+        
+        # Check for pickle directory in snapdir.
+        if pickdir is None:
+            pickdir = os.path.join(snapdir, 'pickle/')
+        if not os.path.exists(pickdir):
+            if verbose:
+                print('Pickle directory doesn\'t exist; creating pickle directory...')
+            os.mkdir(pickdir)
+            if verbose:
+                print(pickdir)
+        # Pickle filename.
+        pick_name = '{0:s}_zoom_{1:d}_ax_{2:s}_slc.pkl'.format(snap_name, zoom, ax)
+        fname_pkl = os.path.join(pickdir, pick_name)
+        # Check if pickle file already exists.
+        if os.path.isfile(fname_pkl):
+            if verbose:
+                print('Pickle file already exists:')
+                print(fname_pkl)
+        else:
+            if verbose:
+                print('No pickle file found...')
+        
+        self.fname_snap    = fname_snap
+        self.fname_pkl     = fname_pkl
+        self.pickdir       = pickdir
+        self.snapdir       = snapdir
+        self.zoom          = zoom
+        self.ax            = ax
+        self.field_list    = field_list
+        self.center_coords = center_coords
+        self.pickle_data   = pickle_data
+        
+        self.plot_data = self.get_plot_data(self.field_list, verbose=verbose)
+        
+        
+    def get_plot_data(self, field_list=[('gas', 'density')], verbose=True):
+        
+        load_data_from_pkl = False
+        get_new_data       = True
+        new_field_list     = field_list
+    
+        # Save plot data as dictionary in pickle file.
+        plot_data = {}
+        
+        # First check if pickle file with plot data already exists.
+        if os.path.isfile(self.fname_pkl):
+            load_data_from_pkl = True
+        # Check if desired fields are in pickle file.
+        if load_data_from_pkl:
+            with open(self.fname_pkl, "rb") as f_pkl:
+                if verbose:
+                    print('Loading existing pickle file...')
+                plot_data_pkl = pk.load(f_pkl)
+            plot_data = plot_data_pkl
+            pkl_keys  = list(plot_data_pkl.keys())
+            if verbose:
+                print('Current keys in pickle dict:')
+                print(pkl_keys)
+            des_keys = []
+            for field_tuple in field_list:
+                des_keys.append(field_tuple[-1])
+            fields_to_add   = []
+            new_field_count = 0
+            for des_key in des_keys:
+                if des_key not in pkl_keys:
+                    new_field_count += 1
+                    fields_to_add.append(('gas', des_key))
+            if (new_field_count == 0):
+                get_new_data = False 
+                if verbose:
+                    print('All fields found in pickle file; returning stored plot dict...')
+            else:
+                new_field_list = fields_to_add
+                if verbose:
+                    print('Getting new field data: ')
+                    print(fields_to_add)
+                  
+        # Get new field data using YT.
+        if get_new_data:
+            if verbose:
+                print('Using YT to get new plot data...')
+            yt.set_log_level(50)
+            unit_base = {'UnitMagneticField_in_gauss': self.B_unit,
+                        'UnitLength_in_cm': self.l_unit,
+                        'UnitMass_in_g': self.m_unit,
+                        'UnitVelocity_in_cm_per_s': self.v_unit}
+            ds = yt.load(self.fname_snap, unit_base=unit_base); ad = ds.all_data()
+            # Using snapshots rotated to disk coordinate frame.
+            if self.center_coords is None:
+                c = ds.arr([0, 0, 0], 'code_length')
+            else:
+                c = ds.arr(self.center_coords, 'code_length')
+    
+            # Get data region.
+            half_width = ds.quan(self.box_size/(2.0 * self.zoom), 'code_length')
+            left_edge  = c - half_width
+            right_edge = c + half_width
+            box        = ds.region(c, left_edge, right_edge, fields=field_list, ds=ds)
+    
+            # Get slice plot data.
+            slc = yt.SlicePlot(ds, self.ax, new_field_list, center=c, data_source=box)
+            slc.set_axes_unit('AU')
+            slc.zoom(self.zoom)
+    
+            # Need to plot/save figures to save data.
+            tempname = os.path.join(self.pickdir, 'temp_slc.png')
+            slc.save(tempname)
+            
+            plot_data_shape = (0, 0)
+            for i, field_tuple in enumerate(list(slc.plots)):
+                field_name = field_tuple[1]
+                plot = slc.plots[list(slc.plots)[i]]
+                ax   = plot.axes
+                img  = ax.images[0]
+                data = np.asarray(img.get_array())
+                plot_data[field_name] = data
+                if i == 0:
+                    plot_data_shape = np.shape(data)
+                    
+            if 'empty_data' not in plot_data.keys():
+                plot_data['empty_data'] = np.zeros(plot_data_shape)
+        
+            plot_data['xlim']  = slc.xlim
+            plot_data['ylim']  = slc.ylim
+            plot_data['width'] = slc.width
+    
+            # Pickle new plot data:
+            if self.pickle_data:
+                with open(self.fname_pkl, 'wb') as f_out:
+                    pk.dump(plot_data, f_out)
+        return plot_data
+    
+    def print_stats(self, field_name, data_unit=1.0):
+        data = self.plot_data[field_name]*data_unit
+        print('Min:  {0:.2e}'.format(np.min(data)))
+        print('Max:  {0:.2e}'.format(np.max(data)))
+        print('Mean: {0:.2e}'.format(np.mean(data)))
+        
+        
+    def draw_streamlines(self, ax, proj_ax='z', density=3, color='white', 
+                         arrowsize=1, linewidth=1, field='magnetic'):
+        
+        data = self.plot_data
+        
+        xmin = (data['xlim'][0].in_units('AU').v).item()
+        xmax = (data['xlim'][1].in_units('AU').v).item()
+        ymin = (data['ylim'][0].in_units('AU').v).item()
+        ymax = (data['ylim'][1].in_units('AU').v).item()
+        
+        #X, Y = np.linspace(1, 800, num=800), np.linspace(1, 800, num=800)
+        X, Y = np.linspace(xmin, xmax, num=800), np.linspace(ymin, ymax, num=800)
+        
+        if field == 'magnetic':
+            if proj_ax == 'x':
+                field_x, field_y = 'magnetic_field_y', 'magnetic_field_z'
+            elif proj_ax == 'y':
+                field_x, field_y = 'magnetic_field_z', 'magnetic_field_x'
+            else:
+                field_x, field_y = 'magnetic_field_x', 'magnetic_field_y'
+        elif field == 'velocity':
+            if proj_ax == 'x':
+                field_x, field_y = 'velocity_y', 'velocity_z'
+            elif proj_ax == 'y':
+                field_x, field_y = 'velocity_z', 'velocity_x'
+            else:
+                field_x, field_y = 'velocity_x', 'velocity_y'
+        
+        U, V = self.plot_data[field_x], self.plot_data[field_y]
+        im = ax.streamplot(X, Y, U, V, density=density, color=color, 
+                           arrowsize=arrowsize, linewidth=linewidth)
+        return im
+        
+    def draw_imshow(self, ax, field_name, cmap, vmin, vmax, norm_type, 
+                    linthresh=None, data_unit=1.0, label1=None, label2=None,
+                    xticks=None, xtick_labels=None, yticks=None, ytick_labels=None,
+                    fs_tick_labels=6, fs_text_labels=6, 
+                    label1_x=0.15, label1_y=0.9, label2_x=0.77, label2_y=0.9,
+                    use_bbox=False):
+        
+        data = self.plot_data
+        if field_name != 'plasma_beta_custom':
+            self.print_stats(field_name, data_unit=data_unit)
+        
+        prefactor = 1.0
+    
+        #fs_tick_labels = 6
+        #fs_text_labels = 8
+    
+        f = field_name
+        if (f == 'plasma_beta_custom'):
+            data_cs = data['sound_speed']
+            data_va = data['alfven_speed']
+            data_f  = 2.0 * np.divide(data_cs**2, data_va**2)
+        else:
+            data_f = data[f]
+        
+        if vmin is None:
+            if f == 'nonideal_eta_H':
+                prefactor = -1.0
+                vmin = prefactor*data_f.max()*data_unit
+            else:
+                vmin = data_f.min()*data_unit
+        else:
+            vmin = vmin
+        if vmax is None:
+            if f == 'nonideal_eta_H':
+                prefactor = -1.0
+                vmax = prefactor*data_f.min()*data_unit
+            else:
+                vmax = data_f.max()*data_unit
+        else:
+            vmax = vmax
+        
+        if norm_type == 'log':
+            norm = mpl.colors.LogNorm(vmin=vmin, vmax=vmax)
+        elif norm_type == 'symlog':
+            norm = mpl.colors.SymLogNorm(linthresh, vmin=vmin, vmax=vmax)
+        else:
+            norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
+    
+        xmin = (data['xlim'][0].in_units('AU').v).item()
+        xmax = (data['xlim'][1].in_units('AU').v).item()
+        ymin = (data['ylim'][0].in_units('AU').v).item()
+        ymax = (data['ylim'][1].in_units('AU').v).item()
+    
+        w, h = xmax - xmin, ymax - ymin
+    
+        extent = (-w/2, w/2, -h/2, h/2)
+
+        imshow_args = dict(interpolation='nearest', norm=norm,
+                           origin='lower', cmap=cmap,
+                           #vmin=vmin, vmax=vmax,
+                           extent=extent)
+
+        im = ax.imshow(prefactor*data_f*data_unit, **imshow_args)
+        
+        tick_color = 'black'
+        if cmap in ['plasma', 'magma', 'viridis']:
+            tick_color = 'white'
+        elif cmap in ['Reds', 'Greens']:
+            tick_color = 'black'
+    
+        if label1 is not None:
+            if use_bbox:
+                ax.text(label1_x, label1_y, label1, fontsize=fs_text_labels, c='black', 
+                        horizontalalignment='center', verticalalignment='center', transform=ax.transAxes,
+                        bbox=dict(facecolor='white', edgecolor='black', boxstyle='round'))
+            else:
+                ax.text(label1_x, label1_y, label1, fontsize=fs_text_labels, c=tick_color, 
+                        horizontalalignment='center', verticalalignment='center', transform=ax.transAxes)
+        if label2 is not None:
+            if use_bbox:
+                ax.text(label2_x, label2_y, label2, fontsize=fs_text_labels, c='black', 
+                        horizontalalignment='center', verticalalignment='center', transform=ax.transAxes,
+                        bbox=dict(facecolor='white', edgecolor='black', boxstyle='round'))
+            else:
+                ax.text(label2_x, label2_y, label2, fontsize=fs_text_labels, c=tick_color, 
+                        horizontalalignment='center', verticalalignment='center', transform=ax.transAxes)
+    
+        ax.tick_params(which='major', length=2, left=True, right=True, top=True, bottom=True)
+        ax.tick_params(which='minor', length=1, left=True, right=True, top=True, bottom=True)
+        ax.tick_params(which='both', direction='in')
+        ax.tick_params(which='both', color=tick_color)
+            
+        if xticks is not None:
+            ax.set_xticks(xticks, labels=xtick_labels)
+            if xtick_labels is None:
+                ax.tick_params(labelbottom=False, labeltop=False)
+        else:
+            ax.tick_params(labelbottom=False, labeltop=False, bottom=False, top=False)
+        if yticks is not None:
+            ax.set_yticks(yticks, labels=ytick_labels)
+            if ytick_labels is None:
+                ax.tick_params(labelleft=False, labelright=False)
+        else:
+            ax.tick_params(labelleft=False, labelright=False, left=False, right=False)
+            
+          
+        '''
+        if xticks is not None:
+            ax.set_xticks(xticks, labels=xtick_labels)
+        else:
+            ax.tick_params(labelbottom=False, labeltop=False, bottom=False, top=False)
+        if yticks is not None:
+            ax.set_yticks(yticks, labels=ytick_labels)
+        else:
+            ax.tick_params(labelleft=False, labelright=False, left=False, right=False)
+        '''
+            
+        ax.tick_params(labelsize=fs_tick_labels)
+        
+        return im
+    
+    def draw_colorbar(self, mappable, cax, cbar_location, cticks, clabel,
+                      fs_cb_labels=6, fs_tick_labels=6, cbar_ticks=None, cbar_ticklabels=None,
+                      **colorbar_args):
+        
+        #fs_cb_labels   = 8
+        #fs_tick_labels = 6
+        
+        if cbar_location == 'top':
+            orientation = 'horizontal'
+        elif cbar_location == 'right':
+            orientation = 'vertical'
+        else:
+            orientation = 'vertical'
+        if orientation == 'horizontal':
+            va = 'bottom'
+            position = 'top'
+        elif orientation == 'vertical':
+            va = 'top'
+            position = 'bottom'
+
+        cb = plt.colorbar(mappable, cax=cax, orientation=orientation, ticks=cticks)
+        cb.ax.xaxis.set_ticks_position(position)
+        cb.ax.xaxis.set_label_position(position)
+        cb.set_label(clabel, fontsize=fs_cb_labels, va=va)
+        if cbar_ticklabels is not None:
+            cb.set_ticks(ticks=cbar_ticks, labels=cbar_ticklabels)
+        cb.ax.tick_params(labelsize=fs_tick_labels)
+        cb.ax.tick_params(which='major', length=4)
+        cb.ax.tick_params(which='minor', length=2)
+        
+        return cb
+        
