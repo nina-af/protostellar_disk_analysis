@@ -111,6 +111,20 @@ def plot_density_proj(s, verbose=False, **kwargs):
             cmap = 'plasma'
         else:
             cmap = kwargs['cmap']
+    if 'field_name' in kwargs:
+        if kwargs['field_name'] is None:
+            field_name = 'density'
+        else:
+            field_name = kwargs['field_name']
+    else:
+        field_name = 'density'
+    if 't0' in kwargs:
+        if kwargs['t0'] is None:
+            t0 = 0.0
+        else:
+            t0 = kwargs['t0']
+    else:
+        t0 = 0.0
 
     # Plot line specified by 'unit_vec' array.
     plot_unit_vec = False
@@ -138,7 +152,12 @@ def plot_density_proj(s, verbose=False, **kwargs):
                  'UnitVelocity_in_cm_per_s': s.v_unit}
 
     ds     = yt.load(s.fname, unit_base=unit_base); ad = ds.all_data()
-    t_myrs = np.asarray(ds.current_time) * s.t_unit_myr
+    t_myrs = (s.t - t0) * s.t_unit_myr
+    
+    print('t [code]  = {0:.7f}'.format(s.t))
+    print('t0 [code] = {0:.7f}'.format(t0))
+    print('t_myrs    = {0:.3f}'.format(t_myrs))
+    print('t_ff      = {0:.7f}'.format(s.t_ff0))
 
     # Check whether there are sink particles to plot.
     plot_particles = False
@@ -182,10 +201,15 @@ def plot_density_proj(s, verbose=False, **kwargs):
         box        = ds.region(c, left_edge, right_edge, fields=[('gas', 'density')], ds=ds)
       
     # To-do: add option of plotting other fields.
-    field  = [('gas', 'density')]
+    field  = [('gas', field_name)]
     dirs   = ['x', 'y', 'z']
     title  = ['', 'L [AU]', '']
-    zlabel = 'Projected Density (g cm$^{-2}$)'
+    if field_name == 'density':
+        zlabel = 'Projected Density (g cm$^{-2}$)'
+    elif field_name == 'velocity_magnitude':
+        zlabel = 'Projected Velocity Magnitude (cm$^2$ s$^{-1}$)'
+    else:
+        zlabel = None
     
     figsize       = (20.0, 60.0)
     nrows         = 1
@@ -258,7 +282,8 @@ def plot_density_proj(s, verbose=False, **kwargs):
         prj._setup_plots(); prj.run_callbacks()
         
     f_str = '{0:.3f} Myr'.format(t_myrs)
-    t_str = '{0:.1f} t_cross'.format(s.t / s.t_cross0)
+    #t_str = '{0:.1f} t_cross'.format(s.t / s.t_cross0)
+    t_str = '{0:.1f} t_ff'.format((s.t - t0) / s.t_ff0)
     if 'label' in kwargs:
         if kwargs['label'] is None:
             l_str = ''
@@ -587,6 +612,13 @@ def plot_density_proj_gas(s, gas_ids, gas_name, USE_IDX=False, verbose=True, **k
             cmap = kwargs['cmap']
     else:
         cmap = 'Greens'
+    if 't0' in kwargs:
+        if kwargs['t0'] is None:
+            t0 = 0.0
+        else:
+            t0 = kwargs['t0']
+    else:
+        t0 = 0.0
         
     # Plot line specified by 'unit_vec' array.
     plot_unit_vec = False
@@ -619,7 +651,7 @@ def plot_density_proj_gas(s, gas_ids, gas_name, USE_IDX=False, verbose=True, **k
         
     ds = yt.load(s.fname, unit_base=unit_base); ds.add_particle_filter(gas_name)
     ad = ds.all_data(); plot_particles = False
-    t_myrs = np.asarray(ds.current_time) * s.t_unit_myr
+    t_myrs = (np.asarray(ds.current_time) - t0) * s.t_unit_myr
 
     # Check whether there are sink particles to plot.
     plot_particles = False
@@ -732,7 +764,7 @@ def plot_density_proj_gas(s, gas_ids, gas_name, USE_IDX=False, verbose=True, **k
         prj2._setup_plots(); prj2.run_callbacks()
 
     f_str = '{0:.3f} Myr'.format(t_myrs)
-    t_str = '{0:.1f} t_ff'.format(s.t / s.t_ff0)
+    t_str = '{0:.1f} t_ff'.format((s.t - t0)/ s.t_ff0)
     if 'label' in kwargs:
         if kwargs['label'] is None:
             l_str = ''
@@ -765,8 +797,15 @@ def plot_density_proj_gas(s, gas_ids, gas_name, USE_IDX=False, verbose=True, **k
 
     if kwargs['save_fig']:
         current_i = s.get_i()
-        fname_out = os.path.join(kwargs['projdir'], 
-                                 'zoom_{0:d}_proj_{1:s}_snapshot_{2:03d}.png'.format(zoom, gas_name, current_i))
+        if 'fname_out' in kwargs:
+            if kwargs['fname_out'] is None:
+                fname_out = os.path.join(kwargs['projdir'], 
+                            'zoom_{0:d}_proj_{1:s}_snapshot_{2:03d}.png'.format(zoom, gas_name, current_i))
+            else:
+                fname_out = kwargs['fname_out']
+        else:
+            fname_out = os.path.join(kwargs['projdir'], 
+                        'zoom_{0:d}_proj_{1:s}_snapshot_{2:03d}.png'.format(zoom, gas_name, current_i))
         plt.savefig(fname_out, bbox_inches='tight', facecolor='white', edgecolor='white')
         plt.close(fig)
     else:
