@@ -159,7 +159,8 @@ class YTSlicePlotData:
             ds = yt.load(self.fname_snap, unit_base=unit_base); ad = ds.all_data()
             # Using snapshots rotated to disk coordinate frame.
             if self.center_coords is None:
-                c = ds.arr([0, 0, 0], 'code_length')
+                #c = ds.arr([0, 0, 0], 'code_length')
+                c = ds.domain_center
             else:
                 c = ds.arr(self.center_coords, 'code_length')
     
@@ -167,7 +168,7 @@ class YTSlicePlotData:
             half_width = ds.quan(self.box_size/(2.0 * self.zoom), 'code_length')
             left_edge  = c - half_width
             right_edge = c + half_width
-            box        = ds.region(c, left_edge, right_edge, fields=field_list, ds=ds)
+            box        = ds.region(c, left_edge, right_edge, fields=new_field_list, ds=ds)
     
             # Get slice plot data.
             slc = yt.SlicePlot(ds, self.ax, new_field_list, center=c, data_source=box)
@@ -519,7 +520,11 @@ class YTProjectionPlotData:
                 print(pkl_keys)
             des_keys = []
             for field_tuple in field_list:
-                des_keys.append(field_tuple[-1])
+                if (field_tuple[-1] in ['magnetic_field_x', 'magnetic_field_y', 'magnetic_field_z',
+                                        'velocity_x', 'velocity_y', 'velocity_z']):
+                    des_keys.append('{0:s}_weighted'.format(field_tuple[-1]))
+                else:
+                    des_keys.append(field_tuple[-1])
             fields_to_add   = []
             new_field_count = 0
             for des_key in des_keys:
@@ -535,60 +540,91 @@ class YTProjectionPlotData:
                 if verbose:
                     print('Getting new field data: ')
                     print(fields_to_add)
-                  
-        # Get new field data using YT.
-        if get_new_data:
-            if verbose:
-                print('Using YT to get new plot data...')
-            yt.set_log_level(50)
-            unit_base = {'UnitMagneticField_in_gauss': self.B_unit,
-                        'UnitLength_in_cm': self.l_unit,
-                        'UnitMass_in_g': self.m_unit,
-                        'UnitVelocity_in_cm_per_s': self.v_unit}
-            ds = yt.load(self.fname_snap, unit_base=unit_base); ad = ds.all_data()
-            # Using snapshots rotated to disk coordinate frame.
-            if self.center_coords is None:
-                c = ds.arr([0, 0, 0], 'code_length')
-            else:
-                c = ds.arr(self.center_coords, 'code_length')
-    
-            # Get data region.
-            half_width = ds.quan(self.box_size/(2.0 * self.zoom), 'code_length')
-            left_edge  = c - half_width
-            right_edge = c + half_width
-            box        = ds.region(c, left_edge, right_edge, fields=field_list, ds=ds)
-    
-            # Get slice plot data.
-            prj = yt.ProjectionPlot(ds, self.ax, new_field_list, center=c, data_source=box)
-            prj.set_axes_unit('AU')
-            prj.zoom(self.zoom)
-    
-            # Need to plot/save figures to save data.
-            tempname = os.path.join(self.pickdir, 'temp_prj.png')
-            prj.save(tempname)
-            
-            plot_data_shape = (0, 0)
-            for i, field_tuple in enumerate(list(prj.plots)):
-                field_name = field_tuple[1]
-                plot = prj.plots[list(prj.plots)[i]]
-                ax   = plot.axes
-                img  = ax.images[0]
-                data = np.asarray(img.get_array())
-                plot_data[field_name] = data
-                if i == 0:
-                    plot_data_shape = np.shape(data)
                     
-            if 'empty_data' not in plot_data.keys():
-                plot_data['empty_data'] = np.zeros(plot_data_shape)
+        # Weigh magnetic field info by density.
+        weighted_fields_to_add   = []
+        unweighted_fields_to_add = []
         
-            plot_data['xlim']  = prj.xlim
-            plot_data['ylim']  = prj.ylim
-            plot_data['width'] = prj.width
+        if get_new_data:
+            for field_tuple in new_field_list:
+                if (field_tuple in [('gas', 'magnetic_field_x'), ('gas', 'magnetic_field_y'),
+                                    ('gas', 'magnetic_field_z'), ('gas', 'velocity_x'),
+                                    ('gas', 'velocity_y'), ('gas', 'velocity_z')]):
+                    weighted_fields_to_add.append(field_tuple)
+                else:
+                    unweighted_fields_to_add.append(field_tuple)
+            print('Density-weighted fields to add:')
+            print(weighted_fields_to_add)
+            print('Unweighted fields to add:')
+            print(unweighted_fields_to_add)
+            
+            plot_data = self.get_plot_data_from_YT(plot_data, field_list=unweighted_fields_to_add, 
+                                                   weighted=False, verbose=verbose)
+            plot_data = self.get_plot_data_from_YT(plot_data, field_list=weighted_fields_to_add, 
+                                                   weighted=True, verbose=verbose)
+            
+        return plot_data
+            
+    def get_plot_data_from_YT(self, plot_data, field_list=[('gas', 'density')], weighted=False, verbose=True):
+        # Get new field data using YT.
+        if verbose:
+            print('Using YT to get new plot data...')
+        yt.set_log_level(50)
+        unit_base = {'UnitMagneticField_in_gauss': self.B_unit,
+                     'UnitLength_in_cm': self.l_unit,
+                     'UnitMass_in_g': self.m_unit,
+                     'UnitVelocity_in_cm_per_s': self.v_unit}
+        ds = yt.load(self.fname_snap, unit_base=unit_base); ad = ds.all_data()
+        # Using snapshots rotated to disk coordinate frame.
+        if self.center_coords is None:
+            #c = ds.arr([0, 0, 0], 'code_length')
+            c = ds.domain_center
+        else:
+            c = ds.arr(self.center_coords, 'code_length')
     
-            # Pickle new plot data:
-            if self.pickle_data:
-                with open(self.fname_pkl, 'wb') as f_out:
-                    pk.dump(plot_data, f_out)
+        # Get data region.
+        half_width = ds.quan(self.box_size/(2.0 * self.zoom), 'code_length')
+        left_edge  = c - half_width
+        right_edge = c + half_width
+        box        = ds.region(c, left_edge, right_edge, fields=field_list, ds=ds)
+    
+        # Get projection plot data.
+        if weighted:
+            prj = yt.ProjectionPlot(ds, self.ax, field_list, center=c, data_source=box, weight_field=('gas', 'density'))
+        else:
+            prj = yt.ProjectionPlot(ds, self.ax, field_list, center=c, data_source=box)
+        prj.set_axes_unit('AU')
+        prj.zoom(self.zoom)
+    
+        # Need to plot/save figures to save data.
+        tempname = os.path.join(self.pickdir, 'temp_prj.png')
+        prj.save(tempname)
+            
+        plot_data_shape = (0, 0)
+        for i, field_tuple in enumerate(list(prj.plots)):
+            field_name = field_tuple[1]
+            if weighted:
+                field_name = '{0:s}_weighted'.format(field_name)
+            plot = prj.plots[list(prj.plots)[i]]
+            ax   = plot.axes
+            img  = ax.images[0]
+            data = np.asarray(img.get_array())
+            plot_data[field_name] = data
+            if i == 0:
+                plot_data_shape = np.shape(data)
+                    
+        if 'empty_data' not in plot_data.keys():
+            plot_data['empty_data'] = np.zeros(plot_data_shape)
+        
+        plot_data['xlim']  = prj.xlim
+        plot_data['ylim']  = prj.ylim
+        plot_data['width'] = prj.width
+    
+        # Pickle new plot data:
+        if self.pickle_data:
+            with open(self.fname_pkl, 'wb') as f_out:
+                pk.dump(plot_data, f_out)
+                
         return plot_data
     
     def print_stats(self, field_name, data_unit=1.0):
@@ -603,40 +639,43 @@ class YTProjectionPlotData:
         
         data = self.plot_data
         
-        xmin = (data['xlim'][0].in_units('AU').v).item()
-        xmax = (data['xlim'][1].in_units('AU').v).item()
-        ymin = (data['ylim'][0].in_units('AU').v).item()
-        ymax = (data['ylim'][1].in_units('AU').v).item()
+        xmin   = (data['xlim'][0].in_units('AU').v).item()
+        xmax   = (data['xlim'][1].in_units('AU').v).item()
+        ymin   = (data['ylim'][0].in_units('AU').v).item()
+        ymax   = (data['ylim'][1].in_units('AU').v).item()
+        w, h   = xmax - xmin, ymax - ymin
+        extent = (-w/2, w/2, -h/2, h/2)
         
         #X, Y = np.linspace(1, 800, num=800), np.linspace(1, 800, num=800)
-        X, Y = np.linspace(xmin, xmax, num=800), np.linspace(ymin, ymax, num=800)
+        #X, Y = np.linspace(xmin, xmax, num=800), np.linspace(ymin, ymax, num=800)
+        X, Y = np.linspace(extent[0], extent[1], num=800), np.linspace(extent[2], extent[3], num=800)
         
         if field == 'magnetic':
             if proj_ax == 'x':
-                field_x, field_y = 'magnetic_field_y', 'magnetic_field_z'
+                field_x, field_y = 'magnetic_field_y_weighted', 'magnetic_field_z_weighted'
             elif proj_ax == 'y':
-                field_x, field_y = 'magnetic_field_z', 'magnetic_field_x'
+                field_x, field_y = 'magnetic_field_z_weighted', 'magnetic_field_x_weighted'
             else:
-                field_x, field_y = 'magnetic_field_x', 'magnetic_field_y'
+                field_x, field_y = 'magnetic_field_x_weighted', 'magnetic_field_y_weighted'
         elif field == 'velocity':
             if proj_ax == 'x':
-                field_x, field_y = 'velocity_y', 'velocity_z'
+                field_x, field_y = 'velocity_y_weighted', 'velocity_z_weighted'
             elif proj_ax == 'y':
-                field_x, field_y = 'velocity_z', 'velocity_x'
+                field_x, field_y = 'velocity_z_weighted', 'velocity_x_weighted'
             else:
-                field_x, field_y = 'velocity_x', 'velocity_y'
+                field_x, field_y = 'velocity_x_weighted', 'velocity_y_weighted'
         
         U, V = self.plot_data[field_x], self.plot_data[field_y]
         im = ax.streamplot(X, Y, U, V, density=density, color=color, 
                            arrowsize=arrowsize, linewidth=linewidth)
-        return im
+        return im, U, V, X, Y
         
     def draw_imshow(self, ax, field_name, cmap, vmin, vmax, norm_type, 
                     linthresh=None, data_unit=1.0, label1=None, label2=None,
                     xticks=None, xtick_labels=None, yticks=None, ytick_labels=None,
                     fs_tick_labels=6, fs_text_labels=6, 
                     label1_x=0.15, label1_y=0.9, label2_x=0.77, label2_y=0.9,
-                    use_bbox=False):
+                    use_bbox=False, verbose=False):
         
         data = self.plot_data
         if field_name != 'plasma_beta_custom':
@@ -679,14 +718,15 @@ class YTProjectionPlotData:
         else:
             norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
     
-        xmin = (data['xlim'][0].in_units('AU').v).item()
-        xmax = (data['xlim'][1].in_units('AU').v).item()
-        ymin = (data['ylim'][0].in_units('AU').v).item()
-        ymax = (data['ylim'][1].in_units('AU').v).item()
-    
-        w, h = xmax - xmin, ymax - ymin
-    
+        xmin   = (data['xlim'][0].in_units('AU').v).item()
+        xmax   = (data['xlim'][1].in_units('AU').v).item()
+        ymin   = (data['ylim'][0].in_units('AU').v).item()
+        ymax   = (data['ylim'][1].in_units('AU').v).item()
+        w, h   = xmax - xmin, ymax - ymin
         extent = (-w/2, w/2, -h/2, h/2)
+        
+        if verbose:
+            print('IMSHOW: extent = ' + str(extent))
 
         imshow_args = dict(interpolation='nearest', norm=norm,
                            origin='lower', cmap=cmap,
@@ -727,12 +767,16 @@ class YTProjectionPlotData:
             ax.set_xticks(xticks, labels=xtick_labels)
             if xtick_labels is None:
                 ax.tick_params(labelbottom=False, labeltop=False)
+            else:
+                ax.tick_params(labelsize=fs_tick_labels)
         else:
             ax.tick_params(labelbottom=False, labeltop=False, bottom=False, top=False)
         if yticks is not None:
             ax.set_yticks(yticks, labels=ytick_labels)
             if ytick_labels is None:
                 ax.tick_params(labelleft=False, labelright=False)
+            else:
+                ax.tick_params(labelsize=fs_tick_labels)
         else:
             ax.tick_params(labelleft=False, labelright=False, left=False, right=False)
             
