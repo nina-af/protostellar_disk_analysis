@@ -76,21 +76,21 @@ class YTSlicePlotData:
             pickdir = os.path.join(snapdir, 'pickle/')
         if not os.path.exists(pickdir):
             if verbose:
-                print('Pickle directory doesn\'t exist; creating pickle directory...')
+                print('Pickle directory doesn\'t exist; creating pickle directory...', flush=True)
             os.mkdir(pickdir)
             if verbose:
-                print(pickdir)
+                print(pickdir, flush=True)
         # Pickle filename.
         pick_name = '{0:s}_zoom_{1:d}_ax_{2:s}_slc.pkl'.format(snap_name, zoom, ax)
         fname_pkl = os.path.join(pickdir, pick_name)
         # Check if pickle file already exists.
         if os.path.isfile(fname_pkl):
             if verbose:
-                print('Pickle file already exists:')
-                print(fname_pkl)
+                print('Pickle file already exists:', flush=True)
+                print(fname_pkl, flush=True)
         else:
             if verbose:
-                print('No pickle file found...')
+                print('No pickle file found...', flush=True)
         
         self.fname_snap    = fname_snap
         self.fname_pkl     = fname_pkl
@@ -121,13 +121,13 @@ class YTSlicePlotData:
         if load_data_from_pkl:
             with open(self.fname_pkl, "rb") as f_pkl:
                 if verbose:
-                    print('Loading existing pickle file...')
+                    print('Loading existing pickle file...', flush=True)
                 plot_data_pkl = pk.load(f_pkl)
             plot_data = plot_data_pkl
             pkl_keys  = list(plot_data_pkl.keys())
             if verbose:
-                print('Current keys in pickle dict:')
-                print(pkl_keys)
+                print('Current keys in pickle dict:', flush=True)
+                print(pkl_keys, flush=True)
             des_keys = []
             for field_tuple in field_list:
                 des_keys.append(field_tuple[-1])
@@ -140,17 +140,17 @@ class YTSlicePlotData:
             if (new_field_count == 0):
                 get_new_data = False 
                 if verbose:
-                    print('All fields found in pickle file; returning stored plot dict...')
+                    print('All fields found in pickle file; returning stored plot dict...', flush=True)
             else:
                 new_field_list = fields_to_add
                 if verbose:
-                    print('Getting new field data: ')
-                    print(fields_to_add)
+                    print('Getting new field data: ', flush=True)
+                    print(fields_to_add, flush=True)
                   
         # Get new field data using YT.
         if get_new_data:
             if verbose:
-                print('Using YT to get new plot data...')
+                print('Using YT to get new plot data...', flush=True)
             yt.set_log_level(50)
             unit_base = {'UnitMagneticField_in_gauss': self.B_unit,
                         'UnitLength_in_cm': self.l_unit,
@@ -205,9 +205,9 @@ class YTSlicePlotData:
     
     def print_stats(self, field_name, data_unit=1.0):
         data = self.plot_data[field_name]*data_unit
-        print('Min:  {0:.2e}'.format(np.min(data)))
-        print('Max:  {0:.2e}'.format(np.max(data)))
-        print('Mean: {0:.2e}'.format(np.mean(data)))
+        print('Min:  {0:.2e}'.format(np.min(data)), flush=True)
+        print('Max:  {0:.2e}'.format(np.max(data)), flush=True)
+        print('Mean: {0:.2e}'.format(np.mean(data)), flush=True)
         
         
     def draw_streamlines(self, ax, proj_ax='z', density=3, color='white', 
@@ -466,21 +466,21 @@ class YTProjectionPlotData:
             pickdir = os.path.join(snapdir, 'pickle/')
         if not os.path.exists(pickdir):
             if verbose:
-                print('Pickle directory doesn\'t exist; creating pickle directory...')
+                print('Pickle directory doesn\'t exist; creating pickle directory...', flush=True)
             os.mkdir(pickdir)
             if verbose:
-                print(pickdir)
+                print(pickdir, flush=True)
         # Pickle filename.
         pick_name = '{0:s}_zoom_{1:d}_ax_{2:s}_prj.pkl'.format(snap_name, zoom, ax)
         fname_pkl = os.path.join(pickdir, pick_name)
         # Check if pickle file already exists.
         if os.path.isfile(fname_pkl):
             if verbose:
-                print('Pickle file already exists:')
-                print(fname_pkl)
+                print('Pickle file already exists:', flush=True)
+                print(fname_pkl, flush=True)
         else:
             if verbose:
-                print('No pickle file found...')
+                print('No pickle file found...', flush=True)
         
         self.fname_snap    = fname_snap
         self.fname_pkl     = fname_pkl
@@ -511,13 +511,13 @@ class YTProjectionPlotData:
         if load_data_from_pkl:
             with open(self.fname_pkl, "rb") as f_pkl:
                 if verbose:
-                    print('Loading existing pickle file...')
+                    print('Loading existing pickle file...', flush=True)
                 plot_data_pkl = pk.load(f_pkl)
             plot_data = plot_data_pkl
             pkl_keys  = list(plot_data_pkl.keys())
             if verbose:
-                print('Current keys in pickle dict:')
-                print(pkl_keys)
+                print('Current keys in pickle dict:', flush=True)
+                print(pkl_keys, flush=True)
             des_keys = []
             for field_tuple in field_list:
                 if (field_tuple[-1] in ['magnetic_field_x', 'magnetic_field_y', 'magnetic_field_z',
@@ -534,11 +534,11 @@ class YTProjectionPlotData:
             if (new_field_count == 0):
                 get_new_data = False 
                 if verbose:
-                    print('All fields found in pickle file; returning stored plot dict...')
+                    print('All fields found in pickle file; returning stored plot dict...', flush=True)
             else:
                 new_field_list = fields_to_add
                 if verbose:
-                    print('Getting new field data: ')
+                    print('Getting new field data: ', flush=True)
                     print(fields_to_add)
                     
         # Weigh magnetic field info by density.
@@ -553,10 +553,10 @@ class YTProjectionPlotData:
                     weighted_fields_to_add.append(field_tuple)
                 else:
                     unweighted_fields_to_add.append(field_tuple)
-            print('Density-weighted fields to add:')
-            print(weighted_fields_to_add)
-            print('Unweighted fields to add:')
-            print(unweighted_fields_to_add)
+            print('Density-weighted fields to add:', flush=True)
+            print(weighted_fields_to_add, flush=True)
+            print('Unweighted fields to add:', flush=True)
+            print(unweighted_fields_to_add, flush=True)
             
             plot_data = self.get_plot_data_from_YT(plot_data, field_list=unweighted_fields_to_add, 
                                                    weighted=False, verbose=verbose)
@@ -568,7 +568,7 @@ class YTProjectionPlotData:
     def get_plot_data_from_YT(self, plot_data, field_list=[('gas', 'density')], weighted=False, verbose=True):
         # Get new field data using YT.
         if verbose:
-            print('Using YT to get new plot data...')
+            print('Using YT to get new plot data...', flush=True)
         yt.set_log_level(50)
         unit_base = {'UnitMagneticField_in_gauss': self.B_unit,
                      'UnitLength_in_cm': self.l_unit,
@@ -629,9 +629,9 @@ class YTProjectionPlotData:
     
     def print_stats(self, field_name, data_unit=1.0):
         data = self.plot_data[field_name]*data_unit
-        print('Min:  {0:.2e}'.format(np.min(data)))
-        print('Max:  {0:.2e}'.format(np.max(data)))
-        print('Mean: {0:.2e}'.format(np.mean(data)))
+        print('Min:  {0:.2e}'.format(np.min(data)), flush=True)
+        print('Max:  {0:.2e}'.format(np.max(data)), flush=True)
+        print('Mean: {0:.2e}'.format(np.mean(data)), flush=True)
         
         
     def draw_streamlines(self, ax, proj_ax='z', density=3, color='white', 
