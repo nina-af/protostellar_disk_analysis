@@ -19,10 +19,11 @@ class YTSlicePlotData:
     Plot data can be saved and read from pickle files.
     """
     
-    def __init__(self, fname_snap, zoom=200, ax='x', 
+    def __init__(self, fname_snap=None, zoom=200, ax='x', 
                  field_list=[('gas', 'density')], 
                  pickle_data=True, pickdir=None,
-                 center_coords=None, verbose=True, B_unit=1e4):
+                 center_coords=None, verbose=True, B_unit=1e4,
+                 fname_pkl_stored=None, init_from_pkl=False):
         
         # Physical constants.
         self.PROTONMASS_CGS     = 1.6726e-24
@@ -33,76 +34,83 @@ class YTSlicePlotData:
         self.C_LIGHT_CGS        = 2.9979e10
         self.HYDROGEN_MASSFRAC  = 0.76
         
-        # Get snapdir, snapshot name from snapshot filename.
-        snap_name = fname_snap.rsplit('/')[-1].split('.')[0]
-        snapdir   = fname_snap.rsplit(snap_name)[0]
-        
-        # Open HDF5 file and get snapshot time, units.
-        with h5py.File(fname_snap, 'r') as f:
-            header = f['Header']
-                
-            # Header attributes.
-            self.box_size = header.attrs['BoxSize']
-            self.t        = header.attrs['Time']
-        
-            # Unit conversions to cgs; note typo in header for G_code.
-            self.G_code      = header.attrs['Gravitational_Constant_In_Code_Inits']
-            if 'Internal_UnitB_In_Gauss' in header.attrs:
-                self.B_code = header.attrs['Internal_UnitB_In_Gauss']
-            else:
-                self.B_code = 2.916731267922059e-09
-            self.l_unit      = header.attrs['UnitLength_In_CGS']
-            self.m_unit      = header.attrs['UnitMass_In_CGS']
-            self.v_unit      = header.attrs['UnitVelocity_In_CGS']
-            self.B_unit      = B_unit                           # Magnetic field unit in Gauss.
-            self.t_unit      = self.l_unit / self.v_unit
-            self.t_unit_myr  = self.t_unit / (3600.0 * 24.0 * 365.0 * 1e6)
-            self.rho_unit    = self.m_unit / self.l_unit**3
-            self.nH_unit     = self.rho_unit/self.PROTONMASS_CGS
-            self.P_unit      = self.m_unit / self.l_unit / self.t_unit**2
-            self.spec_L_unit = self.l_unit * self.v_unit        # Specific angular momentum (get_net_ang_mom).
-            self.L_unit      = self.spec_L_unit * self.m_unit   # Angular momentum.
-            self.E_unit      = self.l_unit**2 / self.t_unit**2  # Energy [erg].
-            self.eta_unit    = self.l_unit**2 / self.t_unit     # Nonideal MHD diffusivities.
-            # Convert internal energy to temperature units.
-            self.u_to_temp_units = (self.PROTONMASS_CGS/self.BOLTZMANN_CGS)*self.E_unit
-
-            # Other useful conversion factors.
-            self.cm_to_AU = 6.6845871226706e-14
-            self.cm_to_pc = 3.2407792896664e-19
-        
-        # Check for pickle directory in snapdir.
-        if pickdir is None:
-            pickdir = os.path.join(snapdir, 'pickle/')
-        if not os.path.exists(pickdir):
-            if verbose:
-                print('Pickle directory doesn\'t exist; creating pickle directory...', flush=True)
-            os.mkdir(pickdir)
-            if verbose:
-                print(pickdir, flush=True)
-        # Pickle filename.
-        pick_name = '{0:s}_zoom_{1:d}_ax_{2:s}_slc.pkl'.format(snap_name, zoom, ax)
-        fname_pkl = os.path.join(pickdir, pick_name)
-        # Check if pickle file already exists.
-        if os.path.isfile(fname_pkl):
-            if verbose:
-                print('Pickle file already exists:', flush=True)
-                print(fname_pkl, flush=True)
+        if init_from_pkl:
+            with open(fname_pkl_stored, "rb") as f_pkl:
+                if verbose:
+                    print('No snapshot file; loading existing pickle file...', flush=True)
+                self.plot_data = pk.load(f_pkl)
         else:
-            if verbose:
-                print('No pickle file found...', flush=True)
         
-        self.fname_snap    = fname_snap
-        self.fname_pkl     = fname_pkl
-        self.pickdir       = pickdir
-        self.snapdir       = snapdir
-        self.zoom          = zoom
-        self.ax            = ax
-        self.field_list    = field_list
-        self.center_coords = center_coords
-        self.pickle_data   = pickle_data
+            # Get snapdir, snapshot name from snapshot filename.
+            snap_name = fname_snap.rsplit('/')[-1].split('.')[0]
+            snapdir   = fname_snap.rsplit(snap_name)[0]
         
-        self.plot_data = self.get_plot_data(self.field_list, verbose=verbose)
+            # Open HDF5 file and get snapshot time, units.
+            with h5py.File(fname_snap, 'r') as f:
+                header = f['Header']
+                
+                # Header attributes.
+                self.box_size = header.attrs['BoxSize']
+                self.t        = header.attrs['Time']
+        
+                # Unit conversions to cgs; note typo in header for G_code.
+                self.G_code      = header.attrs['Gravitational_Constant_In_Code_Inits']
+                if 'Internal_UnitB_In_Gauss' in header.attrs:
+                    self.B_code = header.attrs['Internal_UnitB_In_Gauss']
+                else:
+                    self.B_code = 2.916731267922059e-09
+                self.l_unit      = header.attrs['UnitLength_In_CGS']
+                self.m_unit      = header.attrs['UnitMass_In_CGS']
+                self.v_unit      = header.attrs['UnitVelocity_In_CGS']
+                self.B_unit      = B_unit                           # Magnetic field unit in Gauss.
+                self.t_unit      = self.l_unit / self.v_unit
+                self.t_unit_myr  = self.t_unit / (3600.0 * 24.0 * 365.0 * 1e6)
+                self.rho_unit    = self.m_unit / self.l_unit**3
+                self.nH_unit     = self.rho_unit/self.PROTONMASS_CGS
+                self.P_unit      = self.m_unit / self.l_unit / self.t_unit**2
+                self.spec_L_unit = self.l_unit * self.v_unit        # Specific angular momentum (get_net_ang_mom).
+                self.L_unit      = self.spec_L_unit * self.m_unit   # Angular momentum.
+                self.E_unit      = self.l_unit**2 / self.t_unit**2  # Energy [erg].
+                self.eta_unit    = self.l_unit**2 / self.t_unit     # Nonideal MHD diffusivities.
+                # Convert internal energy to temperature units.
+                self.u_to_temp_units = (self.PROTONMASS_CGS/self.BOLTZMANN_CGS)*self.E_unit
+
+                # Other useful conversion factors.
+                self.cm_to_AU = 6.6845871226706e-14
+                self.cm_to_pc = 3.2407792896664e-19
+        
+            # Check for pickle directory in snapdir.
+            if pickdir is None:
+                pickdir = os.path.join(snapdir, 'pickle/')
+            if not os.path.exists(pickdir):
+                if verbose:
+                    print('Pickle directory doesn\'t exist; creating pickle directory...', flush=True)
+                os.mkdir(pickdir)
+                if verbose:
+                    print(pickdir, flush=True)
+            # Pickle filename.
+            pick_name = '{0:s}_zoom_{1:d}_ax_{2:s}_slc.pkl'.format(snap_name, zoom, ax)
+            fname_pkl = os.path.join(pickdir, pick_name)
+            # Check if pickle file already exists.
+            if os.path.isfile(fname_pkl):
+                if verbose:
+                    print('Pickle file already exists:', flush=True)
+                    print(fname_pkl, flush=True)
+            else:
+                if verbose:
+                    print('No pickle file found...', flush=True)
+        
+            self.fname_snap    = fname_snap
+            self.fname_pkl     = fname_pkl
+            self.pickdir       = pickdir
+            self.snapdir       = snapdir
+            self.zoom          = zoom
+            self.ax            = ax
+            self.field_list    = field_list
+            self.center_coords = center_coords
+            self.pickle_data   = pickle_data
+        
+            self.plot_data = self.get_plot_data(self.field_list, verbose=verbose)
         
         
     def get_plot_data(self, field_list=[('gas', 'density')], verbose=True):
@@ -248,11 +256,12 @@ class YTSlicePlotData:
                     xticks=None, xtick_labels=None, yticks=None, ytick_labels=None,
                     fs_tick_labels=6, fs_text_labels=6, 
                     label1_x=0.15, label1_y=0.9, label2_x=0.77, label2_y=0.9,
-                    use_bbox=False):
+                    use_bbox=False, tl_maj=2, tl_min=1):
         
         data = self.plot_data
         if field_name != 'plasma_beta_custom':
-            self.print_stats(field_name, data_unit=data_unit)
+            if verbose:
+                self.print_stats(field_name, data_unit=data_unit)
         
         prefactor = 1.0
     
@@ -330,8 +339,8 @@ class YTSlicePlotData:
                 ax.text(label2_x, label2_y, label2, fontsize=fs_text_labels, c=tick_color, 
                         horizontalalignment='center', verticalalignment='center', transform=ax.transAxes)
     
-        ax.tick_params(which='major', length=2, left=True, right=True, top=True, bottom=True)
-        ax.tick_params(which='minor', length=1, left=True, right=True, top=True, bottom=True)
+        ax.tick_params(which='major', length=tl_maj, left=True, right=True, top=True, bottom=True)
+        ax.tick_params(which='minor', length=tl_min, left=True, right=True, top=True, bottom=True)
         ax.tick_params(which='both', direction='in')
         ax.tick_params(which='both', color=tick_color)
             
@@ -409,10 +418,11 @@ class YTProjectionPlotData:
     Plot data can be saved and read from pickle files.
     """
     
-    def __init__(self, fname_snap, zoom=200, ax='x', 
+    def __init__(self, fname_snap=None, zoom=200, ax='x', 
                  field_list=[('gas', 'density')], 
                  pickle_data=True, pickdir=None,
-                 center_coords=None, verbose=True, B_unit=1e4):
+                 center_coords=None, verbose=True, B_unit=1e4,
+                 fname_pkl_stored=None, init_from_pkl=False):
         
         # Physical constants.
         self.PROTONMASS_CGS     = 1.6726e-24
@@ -423,76 +433,83 @@ class YTProjectionPlotData:
         self.C_LIGHT_CGS        = 2.9979e10
         self.HYDROGEN_MASSFRAC  = 0.76
         
-        # Get snapdir, snapshot name from snapshot filename.
-        snap_name = fname_snap.rsplit('/')[-1].split('.')[0]
-        snapdir   = fname_snap.rsplit(snap_name)[0]
-        
-        # Open HDF5 file and get snapshot time, units.
-        with h5py.File(fname_snap, 'r') as f:
-            header = f['Header']
-                
-            # Header attributes.
-            self.box_size = header.attrs['BoxSize']
-            self.t        = header.attrs['Time']
-        
-            # Unit conversions to cgs; note typo in header for G_code.
-            self.G_code      = header.attrs['Gravitational_Constant_In_Code_Inits']
-            if 'Internal_UnitB_In_Gauss' in header.attrs:
-                self.B_code = header.attrs['Internal_UnitB_In_Gauss']
-            else:
-                self.B_code = 2.916731267922059e-09
-            self.l_unit      = header.attrs['UnitLength_In_CGS']
-            self.m_unit      = header.attrs['UnitMass_In_CGS']
-            self.v_unit      = header.attrs['UnitVelocity_In_CGS']
-            self.B_unit      = B_unit                           # Magnetic field unit in Gauss.
-            self.t_unit      = self.l_unit / self.v_unit
-            self.t_unit_myr  = self.t_unit / (3600.0 * 24.0 * 365.0 * 1e6)
-            self.rho_unit    = self.m_unit / self.l_unit**3
-            self.nH_unit     = self.rho_unit/self.PROTONMASS_CGS
-            self.P_unit      = self.m_unit / self.l_unit / self.t_unit**2
-            self.spec_L_unit = self.l_unit * self.v_unit        # Specific angular momentum (get_net_ang_mom).
-            self.L_unit      = self.spec_L_unit * self.m_unit   # Angular momentum.
-            self.E_unit      = self.l_unit**2 / self.t_unit**2  # Energy [erg].
-            self.eta_unit    = self.l_unit**2 / self.t_unit     # Nonideal MHD diffusivities.
-            # Convert internal energy to temperature units.
-            self.u_to_temp_units = (self.PROTONMASS_CGS/self.BOLTZMANN_CGS)*self.E_unit
-
-            # Other useful conversion factors.
-            self.cm_to_AU = 6.6845871226706e-14
-            self.cm_to_pc = 3.2407792896664e-19
-        
-        # Check for pickle directory in snapdir.
-        if pickdir is None:
-            pickdir = os.path.join(snapdir, 'pickle/')
-        if not os.path.exists(pickdir):
-            if verbose:
-                print('Pickle directory doesn\'t exist; creating pickle directory...', flush=True)
-            os.mkdir(pickdir)
-            if verbose:
-                print(pickdir, flush=True)
-        # Pickle filename.
-        pick_name = '{0:s}_zoom_{1:d}_ax_{2:s}_prj.pkl'.format(snap_name, zoom, ax)
-        fname_pkl = os.path.join(pickdir, pick_name)
-        # Check if pickle file already exists.
-        if os.path.isfile(fname_pkl):
-            if verbose:
-                print('Pickle file already exists:', flush=True)
-                print(fname_pkl, flush=True)
+        if init_from_pkl:
+            with open(fname_pkl_stored, "rb") as f_pkl:
+                if verbose:
+                    print('No snapshot file; loading existing pickle file...', flush=True)
+                self.plot_data = pk.load(f_pkl)
         else:
-            if verbose:
-                print('No pickle file found...', flush=True)
         
-        self.fname_snap    = fname_snap
-        self.fname_pkl     = fname_pkl
-        self.pickdir       = pickdir
-        self.snapdir       = snapdir
-        self.zoom          = zoom
-        self.ax            = ax
-        self.field_list    = field_list
-        self.center_coords = center_coords
-        self.pickle_data   = pickle_data
+            # Get snapdir, snapshot name from snapshot filename.
+            snap_name = fname_snap.rsplit('/')[-1].split('.')[0]
+            snapdir   = fname_snap.rsplit(snap_name)[0]
         
-        self.plot_data = self.get_plot_data(self.field_list, verbose=verbose)
+            # Open HDF5 file and get snapshot time, units.
+            with h5py.File(fname_snap, 'r') as f:
+                header = f['Header']
+                
+                # Header attributes.
+                self.box_size = header.attrs['BoxSize']
+                self.t        = header.attrs['Time']
+        
+                # Unit conversions to cgs; note typo in header for G_code.
+                self.G_code      = header.attrs['Gravitational_Constant_In_Code_Inits']
+                if 'Internal_UnitB_In_Gauss' in header.attrs:
+                    self.B_code = header.attrs['Internal_UnitB_In_Gauss']
+                else:
+                    self.B_code = 2.916731267922059e-09
+                self.l_unit      = header.attrs['UnitLength_In_CGS']
+                self.m_unit      = header.attrs['UnitMass_In_CGS']
+                self.v_unit      = header.attrs['UnitVelocity_In_CGS']
+                self.B_unit      = B_unit                           # Magnetic field unit in Gauss.
+                self.t_unit      = self.l_unit / self.v_unit
+                self.t_unit_myr  = self.t_unit / (3600.0 * 24.0 * 365.0 * 1e6)
+                self.rho_unit    = self.m_unit / self.l_unit**3
+                self.nH_unit     = self.rho_unit/self.PROTONMASS_CGS
+                self.P_unit      = self.m_unit / self.l_unit / self.t_unit**2
+                self.spec_L_unit = self.l_unit * self.v_unit        # Specific angular momentum (get_net_ang_mom).
+                self.L_unit      = self.spec_L_unit * self.m_unit   # Angular momentum.
+                self.E_unit      = self.l_unit**2 / self.t_unit**2  # Energy [erg].
+                self.eta_unit    = self.l_unit**2 / self.t_unit     # Nonideal MHD diffusivities.
+                # Convert internal energy to temperature units.
+                self.u_to_temp_units = (self.PROTONMASS_CGS/self.BOLTZMANN_CGS)*self.E_unit
+
+                # Other useful conversion factors.
+                self.cm_to_AU = 6.6845871226706e-14
+                self.cm_to_pc = 3.2407792896664e-19
+        
+            # Check for pickle directory in snapdir.
+            if pickdir is None:
+                pickdir = os.path.join(snapdir, 'pickle/')
+            if not os.path.exists(pickdir):
+                if verbose:
+                    print('Pickle directory doesn\'t exist; creating pickle directory...', flush=True)
+                os.mkdir(pickdir)
+                if verbose:
+                    print(pickdir, flush=True)
+            # Pickle filename.
+            pick_name = '{0:s}_zoom_{1:d}_ax_{2:s}_prj.pkl'.format(snap_name, zoom, ax)
+            fname_pkl = os.path.join(pickdir, pick_name)
+            # Check if pickle file already exists.
+            if os.path.isfile(fname_pkl):
+                if verbose:
+                    print('Pickle file already exists:', flush=True)
+                    print(fname_pkl, flush=True)
+            else:
+                if verbose:
+                    print('No pickle file found...', flush=True)
+        
+            self.fname_snap    = fname_snap
+            self.fname_pkl     = fname_pkl
+            self.pickdir       = pickdir
+            self.snapdir       = snapdir
+            self.zoom          = zoom
+            self.ax            = ax
+            self.field_list    = field_list
+            self.center_coords = center_coords
+            self.pickle_data   = pickle_data
+        
+            self.plot_data = self.get_plot_data(self.field_list, verbose=verbose)
         
         
     def get_plot_data(self, field_list=[('gas', 'density')], verbose=True):
@@ -675,11 +692,13 @@ class YTProjectionPlotData:
                     xticks=None, xtick_labels=None, yticks=None, ytick_labels=None,
                     fs_tick_labels=6, fs_text_labels=6, 
                     label1_x=0.15, label1_y=0.9, label2_x=0.77, label2_y=0.9,
-                    use_bbox=False, verbose=False):
+                    use_bbox=False, verbose=False,
+                    tl_maj=2, tl_min=1):
         
         data = self.plot_data
         if field_name != 'plasma_beta_custom':
-            self.print_stats(field_name, data_unit=data_unit)
+            if verbose:
+                self.print_stats(field_name, data_unit=data_unit)
         
         prefactor = 1.0
     
@@ -758,8 +777,8 @@ class YTProjectionPlotData:
                 ax.text(label2_x, label2_y, label2, fontsize=fs_text_labels, c=tick_color, 
                         horizontalalignment='center', verticalalignment='center', transform=ax.transAxes)
     
-        ax.tick_params(which='major', length=2, left=True, right=True, top=True, bottom=True)
-        ax.tick_params(which='minor', length=1, left=True, right=True, top=True, bottom=True)
+        ax.tick_params(which='major', length=tl_maj, left=True, right=True, top=True, bottom=True)
+        ax.tick_params(which='minor', length=tl_min, left=True, right=True, top=True, bottom=True)
         ax.tick_params(which='both', direction='in')
         ax.tick_params(which='both', color=tick_color)
             
