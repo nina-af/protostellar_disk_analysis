@@ -356,11 +356,15 @@ def plot_density_proj_disk(s, disk_name, disk_ids, verbose=False, USE_IDX=False,
             cmap = 'plasma'
         else:
             cmap = kwargs['cmap']
+    else:
+        cmap = 'plasma'
     if 'cmap2' in kwargs:
         if kwargs['cmap2'] is None:
             cmap2 = 'Blues'
         else:
             cmap2 = kwargs['cmap2']
+    else:
+        cmap2 = 'Blues'
             
     # Plot line specified by 'unit_vec' array.
     plot_unit_vec = False
