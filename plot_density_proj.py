@@ -111,6 +111,8 @@ def plot_density_proj(s, verbose=False, **kwargs):
             cmap = 'plasma'
         else:
             cmap = kwargs['cmap']
+    else:
+        cmap = 'plasma'
     if 'field_name' in kwargs:
         if kwargs['field_name'] is None:
             field_name = 'density'
