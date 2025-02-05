@@ -254,9 +254,9 @@ class YTSlicePlotData:
     def draw_imshow(self, ax, field_name, cmap, vmin, vmax, norm_type, 
                     linthresh=None, data_unit=1.0, label1=None, label2=None,
                     xticks=None, xtick_labels=None, yticks=None, ytick_labels=None,
-                    fs_tick_labels=6, fs_text_labels=6, 
+                    fs_tick_labels=6, fs_text_labels=6, tick_color='black', text_color='white',
                     label1_x=0.15, label1_y=0.9, label2_x=0.77, label2_y=0.9,
-                    use_bbox=False, tl_maj=2, tl_min=1):
+                    use_bbox=False, tl_maj=2, tl_min=1, boxstyle='square'):
         
         data = self.plot_data
         if field_name != 'plasma_beta_custom':
@@ -326,7 +326,7 @@ class YTSlicePlotData:
             if use_bbox:
                 ax.text(label1_x, label1_y, label1, fontsize=fs_text_labels, c='black', 
                         horizontalalignment='center', verticalalignment='center', transform=ax.transAxes,
-                        bbox=dict(facecolor='white', edgecolor='black', boxstyle='round'))
+                        bbox=dict(facecolor='white', edgecolor='black', boxstyle=boxstyle))
             else:
                 ax.text(label1_x, label1_y, label1, fontsize=fs_text_labels, c=tick_color, 
                         horizontalalignment='center', verticalalignment='center', transform=ax.transAxes)
@@ -334,7 +334,7 @@ class YTSlicePlotData:
             if use_bbox:
                 ax.text(label2_x, label2_y, label2, fontsize=fs_text_labels, c='black', 
                         horizontalalignment='center', verticalalignment='center', transform=ax.transAxes,
-                        bbox=dict(facecolor='white', edgecolor='black', boxstyle='round'))
+                        bbox=dict(facecolor='white', edgecolor='black', boxstyle=boxstyle))
             else:
                 ax.text(label2_x, label2_y, label2, fontsize=fs_text_labels, c=tick_color, 
                         horizontalalignment='center', verticalalignment='center', transform=ax.transAxes)
@@ -690,10 +690,10 @@ class YTProjectionPlotData:
     def draw_imshow(self, ax, field_name, cmap, vmin, vmax, norm_type, 
                     linthresh=None, data_unit=1.0, label1=None, label2=None,
                     xticks=None, xtick_labels=None, yticks=None, ytick_labels=None,
-                    fs_tick_labels=6, fs_text_labels=6, 
+                    fs_tick_labels=6, fs_text_labels=6, tick_color='black', text_color='white',
                     label1_x=0.15, label1_y=0.9, label2_x=0.77, label2_y=0.9,
                     use_bbox=False, verbose=False,
-                    tl_maj=2, tl_min=1):
+                    tl_maj=2, tl_min=1, boxstyle='square'):
         
         data = self.plot_data
         if field_name != 'plasma_beta_custom':
@@ -764,7 +764,7 @@ class YTProjectionPlotData:
             if use_bbox:
                 ax.text(label1_x, label1_y, label1, fontsize=fs_text_labels, c='black', 
                         horizontalalignment='center', verticalalignment='center', transform=ax.transAxes,
-                        bbox=dict(facecolor='white', edgecolor='black', boxstyle='round'))
+                        bbox=dict(facecolor='white', edgecolor='black', boxstyle=boxstyle))
             else:
                 ax.text(label1_x, label1_y, label1, fontsize=fs_text_labels, c=tick_color, 
                         horizontalalignment='center', verticalalignment='center', transform=ax.transAxes)
@@ -772,7 +772,7 @@ class YTProjectionPlotData:
             if use_bbox:
                 ax.text(label2_x, label2_y, label2, fontsize=fs_text_labels, c='black', 
                         horizontalalignment='center', verticalalignment='center', transform=ax.transAxes,
-                        bbox=dict(facecolor='white', edgecolor='black', boxstyle='round'))
+                        bbox=dict(facecolor='white', edgecolor='black', boxstyle=boxstyle))
             else:
                 ax.text(label2_x, label2_y, label2, fontsize=fs_text_labels, c=tick_color, 
                         horizontalalignment='center', verticalalignment='center', transform=ax.transAxes)
