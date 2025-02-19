@@ -540,6 +540,13 @@ class YTProjectionPlotData:
                 if (field_tuple[-1] in ['magnetic_field_x', 'magnetic_field_y', 'magnetic_field_z',
                                         'velocity_x', 'velocity_y', 'velocity_z']):
                     des_keys.append('{0:s}_weighted'.format(field_tuple[-1]))
+                elif (field_tuple[-1] in ['velocity_dispersion']):
+                    if (self.ax == 'x'):
+                        des_keys.append('velocity_x_dispersion')
+                    elif (self.ax == 'y'):
+                        des_keys.append('velocity_y_dispersion')
+                    elif (self.ax == 'z'):
+                        des_keys.append('velocity_z_dispersion')
                 else:
                     des_keys.append(field_tuple[-1])
             fields_to_add   = []
@@ -561,6 +568,9 @@ class YTProjectionPlotData:
         # Weigh magnetic field info by density.
         weighted_fields_to_add   = []
         unweighted_fields_to_add = []
+
+        # Moment fields = velocity dispersion.
+        moment_fields_to_add     = []
         
         if get_new_data:
             for field_tuple in new_field_list:
@@ -568,21 +578,30 @@ class YTProjectionPlotData:
                                     ('gas', 'magnetic_field_z'), ('gas', 'velocity_x'),
                                     ('gas', 'velocity_y'), ('gas', 'velocity_z')]):
                     weighted_fields_to_add.append(field_tuple)
+                elif (field_tuple in [('gas', 'velocity_x_dispersion'),
+                                      ('gas', 'velocity_y_dispersion'),
+                                      ('gas', 'velocity_z_dispersion')]):
+                    moment_fields_to_add.append(field_tuple)
                 else:
                     unweighted_fields_to_add.append(field_tuple)
             print('Density-weighted fields to add:', flush=True)
             print(weighted_fields_to_add, flush=True)
             print('Unweighted fields to add:', flush=True)
             print(unweighted_fields_to_add, flush=True)
+            print('Moment fields to add:', flush=True)
+            print(moment_fields_to_add, flush=True)
             
             plot_data = self.get_plot_data_from_YT(plot_data, field_list=unweighted_fields_to_add, 
                                                    weighted=False, verbose=verbose)
             plot_data = self.get_plot_data_from_YT(plot_data, field_list=weighted_fields_to_add, 
                                                    weighted=True, verbose=verbose)
+            plot_data = self.get_plot_data_from_YT(plot_data, field_list=moment_fields_to_add,
+                                                   moment_field=True, verbose=verbose)
             
         return plot_data
             
-    def get_plot_data_from_YT(self, plot_data, field_list=[('gas', 'density')], weighted=False, verbose=True):
+    def get_plot_data_from_YT(self, plot_data, field_list=[('gas', 'density')], weighted=False,
+                              moment_field=False, verbose=True):
         # Get new field data using YT.
         if verbose:
             print('Using YT to get new plot data...', flush=True)
@@ -607,7 +626,23 @@ class YTProjectionPlotData:
     
         # Get projection plot data.
         if weighted:
-            prj = yt.ProjectionPlot(ds, self.ax, field_list, center=c, data_source=box, weight_field=('gas', 'density'))
+            prj = yt.ProjectionPlot(ds, self.ax, field_list, center=c, data_source=box,
+                                    weight_field=('gas', 'density'))
+        elif moment_field:
+            if verbose:
+                print('Getting moment fields for axis {0:s}:'.format(self.ax), flush=True)
+                print(field_list, flush=True)
+            new_field_list = []
+            if (('gas', 'velocity_x_dispersion') in field_list):
+                new_field_list.append(('gas', 'velocity_x'))
+            elif (('gas', 'velocity_y_dispersion') in field_list):
+                new_field_list.append(('gas', 'velocity_y'))
+            elif (('gas', 'velocity_z_dispersion') in field_list):
+                new_field_list.append(('gas', 'velocity_z'))
+            if verbose:
+                print(new_field_list, flush=True)
+            prj = yt.ProjectionPlot(ds, self.ax, new_field_list, center=c, data_source=box,
+                                    weight_field=('gas', 'density'), moment=2)
         else:
             prj = yt.ProjectionPlot(ds, self.ax, field_list, center=c, data_source=box)
         prj.set_axes_unit('AU')
@@ -622,6 +657,8 @@ class YTProjectionPlotData:
             field_name = field_tuple[1]
             if weighted:
                 field_name = '{0:s}_weighted'.format(field_name)
+            if moment_field:
+                field_name = '{0:s}_dispersion'.format(field_name)
             plot = prj.plots[list(prj.plots)[i]]
             ax   = plot.axes
             img  = ax.images[0]
