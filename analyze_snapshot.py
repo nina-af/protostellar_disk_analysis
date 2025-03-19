@@ -101,7 +101,8 @@ class Disk:
         tracking disk particles if particle IDs are not unique.
     """
 
-    def __init__(self, fname, cloud, USE_IDX=False):
+    def __init__(self, fname, cloud, USE_IDX=False, 
+                 overwrite_snapdir=False, snapdir=None):
         
         self.fname   = fname
         self.cloud   = cloud
@@ -112,6 +113,10 @@ class Disk:
             header = f['header']
             self.snapshot     = header.attrs['snapshot']       # Snapshot number.
             self.snapdir      = header.attrs['snapdir']        # Snapshot data directory.
+            # Use if snapshots have been moved to a different directory than stored in Header.
+            if overwrite_snapdir:
+                #self.snapdir  = self.fname.split('snapshot_')[0]
+                self.snapdir  = snapdir
             self.disk_type    = header.attrs['disk_type']
             self.disk_name    = header.attrs['disk_name']
             self.primary_sink = header.attrs['primary_sink']
