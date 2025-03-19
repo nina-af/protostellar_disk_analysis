@@ -563,7 +563,32 @@ class YTProjectionPlotData:
                 new_field_list = fields_to_add
                 if verbose:
                     print('Getting new field data: ', flush=True)
-                    print(fields_to_add)
+                    print(fields_to_add, flush=True)
+        else:
+            if verbose:
+                print('No pickle file found; checking for weighted and moment fields...', flush=True)
+            get_new_data  = True
+            fields_to_add = []
+            des_keys      = []
+            for field_tuple in field_list:
+                if (field_tuple[-1] in ['magnetic_field_x', 'magnetic_field_y', 'magnetic_field_z',
+                                        'velocity_x', 'velocity_y', 'velocity_z']):
+                    des_keys.append('{0:s}_weighted'.format(field_tuple[-1]))
+                elif (field_tuple[-1] in ['velocity_dispersion']):
+                    if (self.ax == 'x'):
+                        des_keys.append('velocity_x_dispersion')
+                    elif (self.ax == 'y'):
+                        des_keys.append('velocity_y_dispersion')
+                    elif (self.ax == 'z'):
+                        des_keys.append('velocity_z_dispersion')
+                else:
+                    des_keys.append(field_tuple[-1])
+            for des_key in des_keys:
+                fields_to_add.append(('gas', des_key))
+            new_field_list = fields_to_add
+            if verbose:
+                print('Getting new field data: ', flush=True)
+                print(fields_to_add, flush=True)
                     
         # Weigh magnetic field info by density.
         weighted_fields_to_add   = []
