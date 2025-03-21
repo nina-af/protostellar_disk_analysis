@@ -23,7 +23,8 @@ class YTSlicePlotData:
                  field_list=[('gas', 'density')], 
                  pickle_data=True, pickdir=None,
                  center_coords=None, verbose=True, B_unit=1e4,
-                 fname_pkl_stored=None, init_from_pkl=False):
+                 fname_pkl_stored=None, init_from_pkl=False,
+                 ids_ordered=None, center_sink_ids=None):
         
         # Physical constants.
         self.PROTONMASS_CGS     = 1.6726e-24
@@ -78,6 +79,17 @@ class YTSlicePlotData:
                 # Other useful conversion factors.
                 self.cm_to_AU = 6.6845871226706e-14
                 self.cm_to_pc = 3.2407792896664e-19
+
+                # Sink particle data.
+                self.stars_exist = False  # Do star particles exist in this snapshot?
+                if 'PartType5' in f:
+                    self.stars_exist = True
+                    p5 = f['PartType5']
+                    self.p5_ids = p5['ParticleIDs'][()]               # Particle IDs.
+                    self.p5_m   = p5['Masses'][()]                    # Masses.
+                    self.p5_x   = p5['Coordinates'][()][:, 0]         # Coordinates.
+                    self.p5_y   = p5['Coordinates'][()][:, 1]
+                    self.p5_z   = p5['Coordinates'][()][:, 2]
         
             # Check for pickle directory in snapdir.
             if pickdir is None:
@@ -100,17 +112,74 @@ class YTSlicePlotData:
                 if verbose:
                     print('No pickle file found...', flush=True)
         
-            self.fname_snap    = fname_snap
-            self.fname_pkl     = fname_pkl
-            self.pickdir       = pickdir
-            self.snapdir       = snapdir
-            self.zoom          = zoom
-            self.ax            = ax
-            self.field_list    = field_list
-            self.center_coords = center_coords
-            self.pickle_data   = pickle_data
+            self.fname_snap      = fname_snap
+            self.fname_pkl       = fname_pkl
+            self.pickdir         = pickdir
+            self.snapdir         = snapdir
+            self.zoom            = zoom
+            self.ax              = ax
+            self.field_list      = field_list
+            self.center_coords   = center_coords
+            self.pickle_data     = pickle_data
+            self.ids_ordered     = ids_ordered
+            self.center_sink_ids = center_sink_ids
+
+            # If center_sink_ids is not None, set center_coords as center of mass.
+            if self.center_sink_ids is not None:
+                if verbose:
+                    print('Updating center_coords...', flush=True)
+                self.center_coords = self.get_center_of_mass()
+                if verbose:
+                    print('New center_coords: ' + str(self.center_coords), flush=True)
         
+            # Get YT plot data.
             self.plot_data = self.get_plot_data(self.field_list, verbose=verbose)
+
+    # Get sink particle center of mass.
+    def get_center_of_mass(self):
+        if not self.stars_exist:
+            return None
+        idx     = np.isin(self.p5_ids, self.center_sink_ids)
+        m, M    = self.p5_m[idx], np.sum(self.p5_m[idx])
+        x, y, z = self.p5_x[idx], self.p5_y[idx], self.p5_z[idx]
+        x_cm    = np.sum(np.multiply(m, x))/M
+        y_cm    = np.sum(np.multiply(m, y))/M
+        z_cm    = np.sum(np.multiply(m, z))/M
+        cm_x    = np.asarray([x_cm, y_cm, z_cm])
+        return cm_x
+
+    # Sort sink particle IDs according to custom ordering.
+    def sort_ids(self):
+        n_sinks  = len(self.p5_ids)
+        idx_sort = []
+        for i in range(n_sinks):
+            sink_id = self.ids_ordered[i]
+            idx_s   = np.argwhere(self.p5_ids == sink_id)[0][0]
+            idx_sort.append(idx_s)
+        idx_sort = np.asarray(idx_sort)
+        return idx_sort
+
+    # Get sink particle mass, coordinate data, for plotting sink particles.
+    def get_sink_particle_data(self):
+        # If ids_ordered is None, just use default order.
+        if self.ids_ordered is None:
+            self.ids_ordered = self.p5_ids
+        # Sort sink particle ids according to ids_ordered.
+        idx = self.sort_ids()
+        m   = self.p5_m[idx]
+        x   = self.p5_x[idx]
+        y   = self.p5_y[idx]
+        z   = self.p5_z[idx]
+        sink_base = 'sink_data_'
+        sink_data_labels = []
+        for i in range(len(self.p5_ids)):
+            sink_label = sink_base + str(i+1)
+            sink_data_labels.append(sink_label)
+        sink_data_dict = {'center_coords':self.center_coords, 'ids':self.ids_ordered}
+        for i, sink_label in enumerate(sink_data_labels):
+            data = {'m':m[i], 'coords':[x[i], y[i], z[i]]}
+            sink_data_dict[sink_label] = data
+        return sink_data_dict
         
         
     def get_plot_data(self, field_list=[('gas', 'density')], verbose=True):
@@ -136,6 +205,10 @@ class YTSlicePlotData:
             if verbose:
                 print('Current keys in pickle dict:', flush=True)
                 print(pkl_keys, flush=True)
+            if not 'sink_coord_data' in pkl_keys:
+                if verbose:
+                    print('Need to get sink_coord_data...', flush=True)
+                plot_data['sink_coord_data'] = self.get_sink_particle_data()
             des_keys = []
             for field_tuple in field_list:
                 des_keys.append(field_tuple[-1])
@@ -154,6 +227,9 @@ class YTSlicePlotData:
                 if verbose:
                     print('Getting new field data: ', flush=True)
                     print(fields_to_add, flush=True)
+        else:
+            if verbose:
+                print('No pickle file found...', flush=True)
                   
         # Get new field data using YT.
         if get_new_data:
@@ -204,6 +280,10 @@ class YTSlicePlotData:
             plot_data['xlim']  = slc.xlim
             plot_data['ylim']  = slc.ylim
             plot_data['width'] = slc.width
+
+            if verbose:
+                print('Need to get sink_coord_data...', flush=True)
+            plot_data['sink_coord_data'] = self.get_sink_particle_data()
     
             # Pickle new plot data:
             if self.pickle_data:
@@ -422,7 +502,8 @@ class YTProjectionPlotData:
                  field_list=[('gas', 'density')], 
                  pickle_data=True, pickdir=None,
                  center_coords=None, verbose=True, B_unit=1e4,
-                 fname_pkl_stored=None, init_from_pkl=False):
+                 fname_pkl_stored=None, init_from_pkl=False,
+                 ids_ordered=None, center_sink_ids=None):
         
         # Physical constants.
         self.PROTONMASS_CGS     = 1.6726e-24
@@ -477,6 +558,17 @@ class YTProjectionPlotData:
                 # Other useful conversion factors.
                 self.cm_to_AU = 6.6845871226706e-14
                 self.cm_to_pc = 3.2407792896664e-19
+
+                # Sink particle data.
+                self.stars_exist = False  # Do star particles exist in this snapshot?
+                if 'PartType5' in f:
+                    self.stars_exist = True
+                    p5 = f['PartType5']
+                    self.p5_ids = p5['ParticleIDs'][()]               # Particle IDs.
+                    self.p5_m   = p5['Masses'][()]                    # Masses.
+                    self.p5_x   = p5['Coordinates'][()][:, 0]         # Coordinates.
+                    self.p5_y   = p5['Coordinates'][()][:, 1]
+                    self.p5_z   = p5['Coordinates'][()][:, 2]
         
             # Check for pickle directory in snapdir.
             if pickdir is None:
@@ -499,19 +591,75 @@ class YTProjectionPlotData:
                 if verbose:
                     print('No pickle file found...', flush=True)
         
-            self.fname_snap    = fname_snap
-            self.fname_pkl     = fname_pkl
-            self.pickdir       = pickdir
-            self.snapdir       = snapdir
-            self.zoom          = zoom
-            self.ax            = ax
-            self.field_list    = field_list
-            self.center_coords = center_coords
-            self.pickle_data   = pickle_data
+            self.fname_snap      = fname_snap
+            self.fname_pkl       = fname_pkl
+            self.pickdir         = pickdir
+            self.snapdir         = snapdir
+            self.zoom            = zoom
+            self.ax              = ax
+            self.field_list      = field_list
+            self.center_coords   = center_coords
+            self.pickle_data     = pickle_data
+            self.ids_ordered     = ids_ordered
+            self.center_sink_ids = center_sink_ids
+
+            # If center_sink_ids is not None, set center_coords as center of mass.
+            if self.center_sink_ids is not None:
+                if verbose:
+                    print('Updating center_coords...', flush=True)
+                self.center_coords = self.get_center_of_mass()
+                if verbose:
+                    print('New center_coords: ' + str(self.center_coords), flush=True)
         
             self.plot_data = self.get_plot_data(self.field_list, verbose=verbose)
+
+    # Get sink particle center of mass.
+    def get_center_of_mass(self):
+        if not self.stars_exist:
+            return None
+        idx_s   = np.isin(self.p5_ids, self.center_sink_ids)
+        m, M    = self.p5_m[idx_s], np.sum(self.p5_m[idx_s])
+        x, y, z = self.p5_x[idx_s], self.p5_y[idx_s], self.p5_z[idx_s]
+        x_cm    = np.sum(np.multiply(m, x))/M
+        y_cm    = np.sum(np.multiply(m, y))/M
+        z_cm    = np.sum(np.multiply(m, z))/M
+        cm_x    = np.asarray([x_cm, y_cm, z_cm])
+        return cm_x
+
+    # Sort sink particle IDs according to custom ordering.
+    def sort_ids(self):
+        n_sinks  = len(self.p5_ids)
+        idx_sort = []
+        for i in range(n_sinks):
+            sink_id = self.ids_ordered[i]
+            idx_s   = np.argwhere(self.p5_ids == sink_id)[0][0]
+            idx_sort.append(idx_s)
+        idx_sort = np.asarray(idx_sort)
+        return idx_sort
+
+    # Get sink particle mass, coordinate data, for plotting sink particles.
+    def get_sink_particle_data(self):
+        # If ids_ordered is None, just use default order.
+        if self.ids_ordered is None:
+            self.ids_ordered = self.p5_ids
+        # Sort sink particle ids according to ids_ordered.
+        idx = self.sort_ids()
+        m   = self.p5_m[idx]
+        x   = self.p5_x[idx]
+        y   = self.p5_y[idx]
+        z   = self.p5_z[idx]
+        sink_base = 'sink_data_'
+        sink_data_labels = []
+        for i in range(len(self.p5_ids)):
+            sink_label = sink_base + str(i+1)
+            sink_data_labels.append(sink_label)
+        sink_data_dict = {'center_coords':self.center_coords, 'ids':self.ids_ordered}
+        for i, sink_label in enumerate(sink_data_labels):
+            data = {'m':m[i], 'coords':[x[i], y[i], z[i]]}
+            sink_data_dict[sink_label] = data
+        return sink_data_dict
         
-        
+    # Get YT ProjectionPlot data.
     def get_plot_data(self, field_list=[('gas', 'density')], verbose=True):
         
         load_data_from_pkl = False
@@ -535,6 +683,10 @@ class YTProjectionPlotData:
             if verbose:
                 print('Current keys in pickle dict:', flush=True)
                 print(pkl_keys, flush=True)
+            if not 'sink_coord_data' in pkl_keys:
+                if verbose:
+                    print('Need to get sink_coord_data...', flush=True)
+                plot_data['sink_coord_data'] = self.get_sink_particle_data()
             des_keys = []
             for field_tuple in field_list:
                 if (field_tuple[-1] in ['magnetic_field_x', 'magnetic_field_y', 'magnetic_field_z',
@@ -566,7 +718,7 @@ class YTProjectionPlotData:
                     print(fields_to_add, flush=True)
         else:
             if verbose:
-                print('No pickle file found; checking for weighted and moment fields...', flush=True)
+                print('No pickle file found...', flush=True)
             get_new_data  = True
             fields_to_add = []
             des_keys      = []
@@ -589,6 +741,7 @@ class YTProjectionPlotData:
             if verbose:
                 print('Getting new field data: ', flush=True)
                 print(fields_to_add, flush=True)
+
                     
         # Weigh magnetic field info by density.
         weighted_fields_to_add   = []
@@ -622,6 +775,10 @@ class YTProjectionPlotData:
                                                    weighted=True, verbose=verbose)
             plot_data = self.get_plot_data_from_YT(plot_data, field_list=moment_fields_to_add,
                                                    moment_field=True, verbose=verbose)
+
+            if verbose:
+                print('Need to get sink_coord_data...', flush=True)
+            plot_data['sink_coord_data'] = self.get_sink_particle_data()
             
         return plot_data
             
