@@ -161,6 +161,8 @@ class YTSlicePlotData:
 
     # Get sink particle mass, coordinate data, for plotting sink particles.
     def get_sink_particle_data(self):
+        if not self.stars_exist:
+            return None
         # If ids_ordered is None, just use default order.
         if self.ids_ordered is None:
             self.ids_ordered = self.p5_ids
@@ -639,6 +641,8 @@ class YTProjectionPlotData:
 
     # Get sink particle mass, coordinate data, for plotting sink particles.
     def get_sink_particle_data(self):
+        if not self.stars_exist:
+            return None
         # If ids_ordered is None, just use default order.
         if self.ids_ordered is None:
             self.ids_ordered = self.p5_ids
@@ -686,7 +690,10 @@ class YTProjectionPlotData:
             if not 'sink_coord_data' in pkl_keys:
                 if verbose:
                     print('Need to get sink_coord_data...', flush=True)
-                plot_data['sink_coord_data'] = self.get_sink_particle_data()
+                if self.stars_exist:
+                    plot_data['sink_coord_data'] = self.get_sink_particle_data()
+                else:
+                    plot_data['sink_coord_data'] = None
             des_keys = []
             for field_tuple in field_list:
                 if (field_tuple[-1] in ['magnetic_field_x', 'magnetic_field_y', 'magnetic_field_z',
@@ -778,8 +785,10 @@ class YTProjectionPlotData:
 
             if verbose:
                 print('Need to get sink_coord_data...', flush=True)
-            plot_data['sink_coord_data'] = self.get_sink_particle_data()
-            
+            if self.stars_exist:
+                plot_data['sink_coord_data'] = self.get_sink_particle_data()
+            else:
+                plot_data['sink_coord_data'] = None
         return plot_data
             
     def get_plot_data_from_YT(self, plot_data, field_list=[('gas', 'density')], weighted=False,
