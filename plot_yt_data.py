@@ -789,6 +789,12 @@ class YTProjectionPlotData:
                 plot_data['sink_coord_data'] = self.get_sink_particle_data()
             else:
                 plot_data['sink_coord_data'] = None
+
+        # Pickle new plot data:
+        if self.pickle_data:
+            with open(self.fname_pkl, 'wb') as f_out:
+                pk.dump(plot_data, f_out)
+
         return plot_data
             
     def get_plot_data_from_YT(self, plot_data, field_list=[('gas', 'density')], weighted=False,
