@@ -47,24 +47,24 @@ def get_data(imin, imax, snapdir, stardir):
         p5_coord   = np.vstack((p5_x, p5_y, p5_z)).T
         p5_vel     = np.vstack((p5_u, p5_v, p5_w)).T
         p5_ang_mom = np.vstack((p5_lx, p5_ly, p5_lz)).T
-    # Save each dict as an HDF5 dataset.
-    fname_stars = os.path.join(stardir, 'snapshot_{0:03d}_stars.hdf5'.format(i))
-    f      = h5py.File(fname_stars, 'w')
-    header = f.create_dataset('Header', (1,))
-    header.attrs.create('BoxSize', box_size, dtype=float)
-    header.attrs.create('Time', t, dtype=float)
-    header.attrs.create('m_unit', m_unit, dtype=float)
-    header.attrs.create('l_unit', l_unit, dtype=float)
-    header.attrs.create('v_unit', v_unit, dtype=float)
-    header.attrs.create('t_unit', t_unit, dtype=float)
-    header.attrs.create('B_unit', B_unit, dtype=float)
-    header.attrs.create('G_code', G_code, dtype=float)
-    f.create_dataset('ParticleIDs', data=p5_ids, dtype=int)
-    f.create_dataset('Masses', data=p5_m, dtype=float)
-    f.create_dataset('Coordinates', data=p5_coord, dtype=float)
-    f.create_dataset('Velocities', data=p5_vel, dtype=float)
-    f.create_dataset('SpecificAngMom', data=p5_ang_mom, dtype=float)
-    f.close()
+        # Save each dict as an HDF5 dataset.
+        fname_stars = os.path.join(stardir, 'snapshot_{0:03d}_stars.hdf5'.format(i))
+        f      = h5py.File(fname_stars, 'w')
+        header = f.create_dataset('Header', (1,))
+        header.attrs.create('BoxSize', box_size, dtype=float)
+        header.attrs.create('Time', t, dtype=float)
+        header.attrs.create('m_unit', m_unit, dtype=float)
+        header.attrs.create('l_unit', l_unit, dtype=float)
+        header.attrs.create('v_unit', v_unit, dtype=float)
+        header.attrs.create('t_unit', t_unit, dtype=float)
+        header.attrs.create('B_unit', B_unit, dtype=float)
+        header.attrs.create('G_code', G_code, dtype=float)
+        f.create_dataset('ParticleIDs', data=p5_ids, dtype=int)
+        f.create_dataset('Masses', data=p5_m, dtype=float)
+        f.create_dataset('Coordinates', data=p5_coord, dtype=float)
+        f.create_dataset('Velocities', data=p5_vel, dtype=float)
+        f.create_dataset('SpecificAngMom', data=p5_ang_mom, dtype=float)
+        f.close()
     
 get_data(imin, imax, snapdir, stardir)
     
