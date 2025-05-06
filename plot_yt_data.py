@@ -759,10 +759,17 @@ class YTProjectionPlotData:
         
         if get_new_data:
             for field_tuple in new_field_list:
-                if (field_tuple in [('gas', 'magnetic_field_x'), ('gas', 'magnetic_field_y'),
-                                    ('gas', 'magnetic_field_z'), ('gas', 'velocity_x'),
-                                    ('gas', 'velocity_y'), ('gas', 'velocity_z')]):
-                    weighted_fields_to_add.append(field_tuple)
+                if (field_tuple in [('gas', 'magnetic_field_x_weighted'), ('gas', 'magnetic_field_y_weighted'),
+                                    ('gas', 'magnetic_field_z_weighted'), ('gas', 'velocity_x_weighted'),
+                                    ('gas', 'velocity_y_weighted'), ('gas', 'velocity_z_weighted')]):
+                    # Strip '_weighted' from end of field name.
+                    field_name_old  = field_tuple[1]
+                    field_name_list = field_name_old.split('_')
+                    field_name_new  = field_name_list[0]
+                    for i in range(1, len(field_name_list)-1):
+                        field_name_new += ('_' + field_name_list[i])
+                    field_tuple_new = ('gas', field_name_new)
+                    weighted_fields_to_add.append(field_tuple_new)
                 elif (field_tuple in [('gas', 'velocity_x_dispersion'),
                                       ('gas', 'velocity_y_dispersion'),
                                       ('gas', 'velocity_z_dispersion')]):
