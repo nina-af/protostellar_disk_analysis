@@ -7,6 +7,8 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import ImageGrid
+from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
+import matplotlib.font_manager as fm
 
 import yt
 import unyt
@@ -18,30 +20,34 @@ plot_dict_5   = {'zoom':5, 'zmin':8e-3, 'zmax':4e-1,
                  'set_center':'box_center', 'center_sink_ids':None,
                  'center_coordinates':None,
                  'use_box':True, 'min_size':None, 'max_size':None, 'mass_step':None,
-                 'label':'', 'save_fig':False, 'projdir':None}
+                 'label':'', 'save_fig':False, 'projdir':None, 'plot_t_unit':None,
+                 'scalebar':None}
 
 plot_dict_50  = {'zoom':50, 'zmin':2e-2, 'zmax':1e1,
                  'set_center':'sink_center', 'center_sink_ids':None,
                  'center_coordinates':None,
                  'use_box':True, 'min_size':None, 'max_size':None, 'mass_step':None,
-                 'label':'', 'save_fig':False, 'projdir':None}
+                 'label':'', 'save_fig':False, 'projdir':None, 'plot_t_unit':None,
+                 'scalebar':None}
 
 plot_dict_100 = {'zoom':100, 'zmin':5e-2, 'zmax':1e1,
                  'set_center':'sink_center', 'center_sink_ids':None,
                  'center_coordinates':None,
                  'use_box':True, 'min_size':None, 'max_size':None, 'mass_step':None,
-                 'label':'', 'save_fig':False, 'projdir':None}
+                 'label':'', 'save_fig':False, 'projdir':None, 'plot_t_unit':None,
+                 'scalebar':None}
 
 plot_dict_400 = {'zoom':400, 'zmin':2e-1, 'zmax':2e1,
                  'set_center':'sink_center', 'center_sink_ids':None,
                  'center_coordinates':None,
                  'use_box':True, 'min_size':None, 'max_size':None, 'mass_step':None,
-                 'label':'', 'save_fig':False, 'projdir':None}
+                 'label':'', 'save_fig':False, 'projdir':None, 'plot_t_unit':None,
+                 'scalebar':None}
 
 def find_nearest_size(mass_value, mass_array_min, mass_array_max, mass_array_step):
     
     mass_vals = np.arange(mass_array_min, mass_array_max, mass_array_step)
-    size_vals = np.full(len(mass_vals), 35, dtype=int)
+    size_vals = np.full(len(mass_vals), 15, dtype=int)
     
     for j in range(len(size_vals)):
         size_vals[j] += 10*j
@@ -64,6 +70,10 @@ def sort_ids(p5_ids, sink_order_list):
     return idx_sort
     
 def plot_density_proj(s, verbose=False, **kwargs):
+    
+    if verbose:
+        current_i = s.get_i()
+        print('Snapshot {0:03d}: '.format(current_i), flush=True)
     
     # Specify default plotting values: zoom, zmin, zmax, min_size, max_size, mass_step.
     if 'zoom' in kwargs:
@@ -127,6 +137,33 @@ def plot_density_proj(s, verbose=False, **kwargs):
             t0 = kwargs['t0']
     else:
         t0 = 0.0
+    if 'plot_t_unit' in kwargs:
+        if kwargs['plot_t_unit'] is None:
+            plot_t_unit = 'Myr'
+        else:
+            plot_t_unit = kwargs['plot_t_unit']
+    else:
+        plot_t_unit = 'Myr'
+    if 'scalebar_unit' in kwargs:
+        if kwargs['scalebar_unit'] is None:
+            scalebar_unit = 'AU'
+        else:
+            scalebar_unit = kwargs['scalebar_unit']
+    else:
+        scalebar_unit = 'AU'
+    if 'scalebar_length' in kwargs:
+        if kwargs['scalebar_length'] is None:
+            plot_scalebar   = False
+            scalebar_length = None
+            scalebar_label  = None
+        else:
+            plot_scalebar   = True
+            scalebar_length = float(kwargs['scalebar_length'])
+            scalebar_label  = '{0:s} {1:s}'.format(kwargs['scalebar_length'], scalebar_unit)
+    else:
+        plot_scalebar   = False
+        scalebar_length = None
+        scalebar_label  = None
 
     # Plot line specified by 'unit_vec' array.
     plot_unit_vec = False
@@ -155,11 +192,7 @@ def plot_density_proj(s, verbose=False, **kwargs):
 
     ds     = yt.load(s.fname, unit_base=unit_base); ad = ds.all_data()
     t_myrs = (s.t - t0) * s.t_unit_myr
-    
-    print('t [code]  = {0:.7f}'.format(s.t))
-    print('t0 [code] = {0:.7f}'.format(t0))
-    print('t_myrs    = {0:.3f}'.format(t_myrs))
-    print('t_ff      = {0:.7f}'.format(s.t_ff0))
+    t_kyrs = t_myrs * 1e3
 
     # Check whether there are sink particles to plot.
     plot_particles = False
@@ -203,39 +236,34 @@ def plot_density_proj(s, verbose=False, **kwargs):
         box        = ds.region(c, left_edge, right_edge, fields=[('gas', 'density')], ds=ds)
       
     # To-do: add option of plotting other fields.
-    field  = [('gas', field_name)]
+    field  = [('gas', 'density')]
     dirs   = ['x', 'y', 'z']
-    title  = ['', 'L [AU]', '']
-    if field_name == 'density':
-        zlabel = 'Projected Density (g cm$^{-2}$)'
-    elif field_name == 'velocity_magnitude':
-        zlabel = 'Projected Velocity Magnitude (cm$^2$ s$^{-1}$)'
-    else:
-        zlabel = None
+    if (scalebar_unit == 'AU'):
+        title  = ['', 'L [AU]', '']
+    elif (scalebar_unit == 'pc'):
+        title  = ['', 'L [pc]', '']
+    zlabel = r'$\Sigma$ [g cm$^{-2}$]'
+    fs_cb_labels    = 9
+    fs_axes_labels  = 12
+    fs_tick_labels  = 8
+    fs_text_labels  = 12
+    lw              = 0.8
     
-    figsize       = (20.0, 60.0)
-    nrows         = 1
-    ncols         = 3
-    rect          = '111'
-    direction     = 'row'
-    axes_pad      = 0.2
-    share_all     = False
-    label_mode    = 'L'
-    cbar_mode     = 'edge'
-    cbar_location = 'right'
-    cbar_size     = '5%'
-    cbar_pad      = '5%'
-    cbar_set_cax  = True
-    
-    fig = plt.figure()
-    grid = ImageGrid(fig, rect=(0.075, 0.075, 1.5, 1.5), 
-                     nrows_ncols=(nrows, ncols), direction=direction, axes_pad=axes_pad,
-                     share_all=share_all, aspect=True, label_mode=label_mode, cbar_mode=cbar_mode,
-                     cbar_location=cbar_location, cbar_pad=cbar_pad, cbar_size=cbar_size,
-                     cbar_set_cax=cbar_set_cax)
+    # Set up figure.
+    fig  = plt.figure(figsize=(7.0, 3.3))
+    grid = ImageGrid(fig, 111,  
+                     nrows_ncols=(1, 3),  
+                     axes_pad=0.0,
+                     cbar_location='right',
+                     cbar_mode='single',
+                     cbar_size='8%',
+                     cbar_pad=0.0,
+                     cbar_set_cax=True,
+                     share_all=True)
     
     for i, d in enumerate(dirs):
-        print('Plotting column...')
+        if verbose:
+            print('Plotting column {0:s}...'.format(d), flush=True)
         
         if kwargs['use_box']:
             prj = yt.ProjectionPlot(ds, d, field, center=c, data_source=box)
@@ -245,14 +273,15 @@ def plot_density_proj(s, verbose=False, **kwargs):
         prj.set_cmap(field=field, cmap=cmap)
         prj.set_colorbar_label(field, zlabel)
         prj.set_zlim(field=field, zmin=zmin, zmax=zmax)
-        prj.zoom(zoom); prj.set_axes_unit('AU'); prj.set_font_size(15.0)   
-        
+        prj.zoom(zoom); prj.set_font_size(fs_axes_labels)   
+        if (scalebar_unit == 'AU'):
+            prj.set_axes_unit('AU')
+        elif (scalebar_unit == 'pc'):
+            prj.set_axes_unit('pc')
         prj.set_xlabel(title[i]); prj.set_ylabel(title[1])
         
         if plot_particles:
-            #for j, particle in enumerate(ad[('PartType5', 'Coordinates')]):
             for j, particle in enumerate(coords):
-
                 # Check to make sure particles are within plotting window.
                 dx     = np.abs(c.v - coords[j, :].v)
                 max_dx = half_width.v
@@ -264,12 +293,8 @@ def plot_density_proj(s, verbose=False, **kwargs):
                 
                 if plot_sink_colors:
                     color = sink_color_list[j]
-                    #print(int(all_sink_ids[j].v))
-                    #print(color)
-                    #print('sink {0:d}: color = {1:s}'.format(int(all_sink_ids[j].v), color))
                 else:
                     color = 'white'
-                
                 prj.annotate_marker(particle, marker='o', plot_args={'s':scale, 'color':'black'})
                 prj.annotate_marker(particle, marker='o', plot_args={'s':scale, 'color':color, 'linewidth':1.5,
                                                                      'edgecolor':'black'})
@@ -280,12 +305,32 @@ def plot_density_proj(s, verbose=False, **kwargs):
             prj.annotate_line(p1, p2, coord_system="data")
                 
         plot = prj.plots[field]; plot.figure = fig; plot.axes = grid[i].axes; plot.cax = grid.cbar_axes[i]
-                
         prj._setup_plots(); prj.run_callbacks()
         
-    f_str = '{0:.3f} Myr'.format(t_myrs)
-    #t_str = '{0:.1f} t_cross'.format(s.t / s.t_cross0)
-    t_str = '{0:.1f} t_ff'.format((s.t - t0) / s.t_ff0)
+        # Inset scalebar:
+        if plot_scalebar:
+            fontprops = fm.FontProperties(size=fs_text_labels)
+            for grid_idx in range(3):
+                scalebar = AnchoredSizeBar(grid[grid_idx].transData,
+                                           float(scalebar_length), scalebar_label, 'lower left',
+                                           pad=0.8, sep=3,
+                                           color='white',
+                                           frameon=False,
+                                           label_top=True,
+                                           size_vertical=float(scalebar_length)/20.0,
+                                           fontproperties=fontprops)
+                grid[grid_idx].add_artist(scalebar)  
+                
+        # Remove some tick labels.
+        for grid_idx in range(3):
+            if grid_idx in [0, 2]:
+                grid[grid_idx].tick_params(labelbottom=False, labeltop=False)
+        
+    if (plot_t_unit == 'Myr'):
+        f_str = '{0:.3f} Myr'.format(t_myrs)
+    elif (plot_t_unit == 'kyr'):
+        f_str = '{0:.1f} kyr'.format(t_kyrs)
+    t_str = '{0:.3f} t_ff'.format((s.t - t0) / s.t_ff0)
     if 'label' in kwargs:
         if kwargs['label'] is None:
             l_str = ''
@@ -293,9 +338,9 @@ def plot_density_proj(s, verbose=False, **kwargs):
             l_str = '{0:s}'.format(kwargs['label'])
     else:
         l_str = ''
-    fig.text(0.83, 1.1, f_str, color='white', size=20)
-    fig.text(0.83, 1.05, t_str, color='white', size=20)
-    fig.text(0.11, 1.1, l_str, color='white', size=20)
+    fig.text(0.65, 0.64, f_str, color='white', size=fs_text_labels)
+    fig.text(0.65, 0.61, t_str, color='white', size=fs_text_labels)
+    fig.text(0.14, 0.64, l_str, color='white', size=fs_text_labels)
     
     Fsize = fig.get_size_inches()
     fig.set_size_inches(11.5, 8)
