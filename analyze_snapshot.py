@@ -1319,7 +1319,7 @@ class Snapshot:
         return 4. / (1. + (3. + 4.*self.p0_Ne[idx_g] - 2.*f_mol) * self.HYDROGEN_MASSFRAC)
 
     # Calculate non-ideal MHD coefficients.
-    def get_nonideal_MHD_coefficients(self, gas_ids, USE_IDX=False, version=1, a=0.1, cr=1.0e-17):
+    def get_nonideal_MHD_coefficients(self, gas_ids, USE_IDX=False, version=1, a=0.1, cr=1.0e-17, etamax=1e24):
 
         '''
         version 0: wrong sign on Z_grain.
@@ -1329,7 +1329,10 @@ class Snapshot:
         version 4: new nu_i prefactor; ALSO WRONG posdef sigma_A2.
         version 5: new nu_i prefactor; CORRECT posdef sigma_A2.
         version 6: include x_neutral factor.
+        version 7: apply etamax=1e24 cm^2 s^-1 cap.
         '''
+        
+        print('Calculating NMHD resistivities using version {0:d}...'.format(version))
 
         if USE_IDX:
             idx_g = gas_ids
@@ -1422,7 +1425,7 @@ class Snapshot:
         eta_O = eta_prefac / sigma_O
         eta_H = eta_prefac * sigma_H / sigma_perp2
         if (version >= 3):
-            if version == 6:
+            if (version >= 6):
                 x_neutral = self._DMAX(0., 1-m_ion*xi)
                 eta_A = x_neutral * eta_prefac * (sigma_A2)/(sigma_O*sigma_perp2)
             else:
@@ -1434,8 +1437,28 @@ class Snapshot:
         #eta_O = self._DMAX(0, eta_O)
         #eta_H = self._DMAX(0, eta_H)
         #eta_A = self._DMAX(0, eta_A)
+        
+        # eta_O, eta_H, and eta_A in cgs units; eta_ohmic, eta_hall, and eta_ad in code units.
+        units_cgs_to_code = self.t_unit / self.l_unit**2 
+        eta_ohmic         = eta_O * units_cgs_to_code
+        eta_hall          = eta_H * units_cgs_to_code
+        eta_ad            = eta_A * units_cgs_to_code
+        # Apply cap on eta.
+        if (version >= 7):
+            etamag            = np.abs(eta_ohmic) + np.abs(eta_hall) + np.abs(eta_ad)
+            etamax_code       = etamax * units_cgs_to_code  # cap the coefficients
+            etacor            = np.ones(len(eta_ohmic))
+            idx_gtr           = (etamag > etamax_code)
+            etacor[idx_gtr]   = np.divide(etamax_code, etamag[idx_gtr])   # suppression factor
+            eta_ohmic         = np.multiply(eta_ohmic, etacor)
+            eta_hall          = np.multiply(eta_hall, etacor)
+            eta_ad            = np.multiply(eta_ad, etacor)
+            eta_O             = eta_ohmic / units_cgs_to_code
+            eta_H             = eta_hall / units_cgs_to_code
+            eta_A             = eta_ad / units_cgs_to_code
 
-        return eta_O, eta_H, eta_A
+        #return eta_O, eta_H, eta_A         # return in cgs units
+        return eta_ohmic, eta_hall, eta_ad  # return in code units.
     
     # Use YT to get SlicePlot data and save to pickle file, for making nice
     # paper figures.
