@@ -1319,7 +1319,7 @@ class Snapshot:
         return 4. / (1. + (3. + 4.*self.p0_Ne[idx_g] - 2.*f_mol) * self.HYDROGEN_MASSFRAC)
 
     # Calculate non-ideal MHD coefficients.
-    def get_nonideal_MHD_coefficients(self, gas_ids, USE_IDX=False, version=1, a=0.1, cr=1.0e-17, etamax=1e24):
+    def get_nonideal_MHD_coefficients(self, gas_ids, USE_IDX=False, version=5, a=0.1, cr=1.0e-17, etamax=1e24, verbose=False):
 
         '''
         version 0: wrong sign on Z_grain.
@@ -1332,7 +1332,8 @@ class Snapshot:
         version 7: apply etamax=1e24 cm^2 s^-1 cap.
         '''
         
-        print('Calculating NMHD resistivities using version {0:d}...'.format(version))
+        if verbose:
+            print('Calculating NMHD resistivities using version {0:d}...'.format(version), flush=True)
 
         if USE_IDX:
             idx_g = gas_ids
