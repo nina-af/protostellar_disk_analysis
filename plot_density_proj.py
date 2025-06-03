@@ -348,7 +348,9 @@ def plot_density_proj(s, verbose=False, **kwargs):
     if kwargs['save_fig']:
         current_i = s.get_i()
         fname_out = os.path.join(kwargs['projdir'], 'zoom_{0:d}_proj_{1:03d}.png'.format(zoom, current_i))
-        plt.savefig(fname_out, bbox_inches='tight', facecolor='white', edgecolor='white')
+        #plt.savefig(fname_out, bbox_inches='tight', facecolor='white', edgecolor='white')
+        plt.subplots_adjust(wspace=0, hspace=0)
+        fig.savefig(fname_out, dpi=400, bbox_inches='tight', pad_inches=0.05)
         plt.close(fig)
     else:
         plt.show()
