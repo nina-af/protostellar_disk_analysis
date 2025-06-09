@@ -334,7 +334,7 @@ class Snapshot:
         particles if particle IDs are not unique.
     """
 
-    def __init__(self, fname, cloud, B_unit=1e4):
+    def __init__(self, fname, cloud, B_unit=1e4, verbose=False, NMHD_version=5):
 
         # Physical constants.
         self.PROTONMASS_CGS     = 1.6726e-24
@@ -354,6 +354,8 @@ class Snapshot:
         self.L0      = cloud.L      # Volume-equivalent length.
         self.alpha0  = cloud.alpha  # Initial virial parameter.
         
+        # Version for calculating NMHD coefficients (5 = GIZMO 19f8fc81)
+        self.NMHD_version = NMHD_version
         
         # Open HDF5 file.
         with h5py.File(fname, 'r') as f:
@@ -448,6 +450,13 @@ class Snapshot:
             gamma                = 1. + (f_mono + f_di) / (f_mono/(gamma_mono-1.) + f_di/(gamma_di-1.))
             self.p0_temperature  = (gamma - 1.) * self.p0_mean_molecular_weight * \
                                     self.u_to_temp_units * self.p0_E_int
+            
+            # Gas temperature stored in snapshot.
+            self.output_temperature = False
+            if 'Temperature' in p0.keys():
+                self.output_temperature   = True
+                self.p0_temperature_GIZMO = p0['Temperature'][()]
+            
             # Dust temperature.
             if 'Dust_Temperature' in p0.keys():
                 self.p0_dust_temp = p0['Dust_Temperature'][()]
@@ -455,18 +464,22 @@ class Snapshot:
             # Get stored coefficients if HDF5 field exists.
             if 'MagneticField' in p0.keys():
                 if 'NonidealDiffusivities' in p0.keys():
+                    if verbose:
+                        print('Reading NMHD coefficients from snapshot...', flush=True)
                     self.p0_eta_O = p0['NonidealDiffusivities'][()][:, 0]
                     self.p0_eta_H = p0['NonidealDiffusivities'][()][:, 1]
                     self.p0_eta_A = p0['NonidealDiffusivities'][()][:, 2]
                 # Else, calculate non-ideal MHD coefficients.
                 else:
                     if 'Dust_Temperature' in p0.keys():
-                        eta_O, eta_H, eta_A = self.get_nonideal_MHD_coefficients(self.p0_ids)
+                        if verbose:
+                            print('Calculating NMHD coefficients from snapshot fields using version {0:d}...'.format(self.NMHD_version), flush=True)
+                        eta_O, eta_H, eta_A = self.get_nonideal_MHD_coefficients(self.p0_ids, version=self.NMHD_version)
                     else:
                         eta_O, eta_H, eta_A = 0.0, 0.0, 0.0
-                    self.p0_eta_O       = eta_O
-                    self.p0_eta_H       = eta_H
-                    self.p0_eta_A       = eta_A
+                    self.p0_eta_O = eta_O
+                    self.p0_eta_H = eta_H
+                    self.p0_eta_A = eta_A
             else:
                 self.p0_eta_O = np.zeros(len(self.p0_ids))
                 self.p0_eta_H = np.zeros(len(self.p0_ids))
@@ -1319,7 +1332,8 @@ class Snapshot:
         return 4. / (1. + (3. + 4.*self.p0_Ne[idx_g] - 2.*f_mol) * self.HYDROGEN_MASSFRAC)
 
     # Calculate non-ideal MHD coefficients.
-    def get_nonideal_MHD_coefficients(self, gas_ids, USE_IDX=False, version=5, a=0.1, cr=1.0e-17, etamax=1e24, verbose=False):
+    def get_nonideal_MHD_coefficients(self, gas_ids, USE_IDX=False, version=5, a=0.1, cr=1.0e-17, etamax=1e24, 
+                                      use_stored_temperature=False, verbose=False):
 
         '''
         version 0: wrong sign on Z_grain.
@@ -1339,6 +1353,16 @@ class Snapshot:
             idx_g = gas_ids
         else:
             idx_g = np.isin(self.p0_ids, gas_ids)
+            
+        if use_stored_temperature and self.output_temperature:
+            p0_temperature = self.p0_temperature_GIZMO[idx_g]
+            if verbose:
+                print('Using temperature as stored by OUTPUT_TEMPERATURE flag...', flush=True)
+        else:
+            p0_temperature = self.p0_temperature[idx_g]
+            if verbose:
+                print('Using temperature as calculated from estimating the gas adiabatic index...', flush=True)
+            
 
         #zeta_cr        = 1.0e-17
         #a_grain_micron = 0.1
@@ -1352,9 +1376,11 @@ class Snapshot:
         m_neutral  = self.p0_mean_molecular_weight[idx_g]
         m_grain    = 7.51e9 * ag01*ag01*ag01
         n_eff      = self.p0_rho[idx_g] * self.nH_unit
-        k0         = 1.95e-4 * ag01*ag01 * np.sqrt(self.p0_temperature[idx_g])
+        #k0         = 1.95e-4 * ag01*ag01 * np.sqrt(self.p0_temperature[idx_g])
+        k0         = 1.95e-4 * ag01*ag01 * np.sqrt(p0_temperature)
         ngr_ngas   = (m_neutral/m_grain) * f_dustgas
-        psi_prefac = 167.1 / (ag01 * self.p0_temperature[idx_g])
+        #psi_prefac = 167.1 / (ag01 * self.p0_temperature[idx_g])
+        psi_prefac = 167.1 / (ag01 * p0_temperature)
         alpha      = zeta_cr * psi_prefac / (ngr_ngas*ngr_ngas * k0 * (n_eff/m_neutral))
         y          = np.sqrt(m_ion*self.PROTONMASS_CGS/self.ELECTRONMASS_CGS)
 
@@ -1374,9 +1400,12 @@ class Snapshot:
         xi = n_ion / n_eff
         xg = ngr_ngas
 
-        nu_g  = 7.90e-6 * ag01*ag01 * np.sqrt(self.p0_temperature[idx_g]/m_neutral) / (m_neutral+m_grain)
-        nu_ei = 51. * xe * np.power(self.p0_temperature[idx_g], -1.5)
-        nu_e  = nu_ei + 6.21e-9 * np.power(self.p0_temperature[idx_g]/100., 0.65) / m_neutral
+        #nu_g  = 7.90e-6 * ag01*ag01 * np.sqrt(self.p0_temperature[idx_g]/m_neutral) / (m_neutral+m_grain)
+        #nu_ei = 51. * xe * np.power(self.p0_temperature[idx_g], -1.5)
+        #nu_e  = nu_ei + 6.21e-9 * np.power(self.p0_temperature[idx_g]/100., 0.65) / m_neutral
+        nu_g  = 7.90e-6 * ag01*ag01 * np.sqrt(p0_temperature/m_neutral) / (m_neutral+m_grain)
+        nu_ei = 51. * xe * np.power(p0_temperature, -1.5)
+        nu_e  = nu_ei + 6.21e-9 * np.power(p0_temperature/100., 0.65) / m_neutral
         nu_ie = ((self.ELECTRONMASS_CGS * xe) / (m_ion * self.PROTONMASS_CGS * xi)) * nu_ei
         if (version == 0) or (version == 1):
             nu_i = (xe/xi) * nu_ei + 1.57e-9 / (m_neutral+m_ion)
