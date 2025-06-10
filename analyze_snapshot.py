@@ -334,7 +334,8 @@ class Snapshot:
         particles if particle IDs are not unique.
     """
 
-    def __init__(self, fname, cloud, B_unit=1e4, verbose=False, NMHD_version=5):
+    def __init__(self, fname, cloud, B_unit=1e4, verbose=False, NMHD_version=5,
+                 use_eos_substellar=False, USE_IDX=False):
 
         # Physical constants.
         self.PROTONMASS_CGS     = 1.6726e-24
@@ -356,6 +357,12 @@ class Snapshot:
         
         # Version for calculating NMHD coefficients (5 = GIZMO 19f8fc81)
         self.NMHD_version = NMHD_version
+        
+        # If GIZMO was run with the EOS_SUBSTELLAR_ISM flag.
+        self.use_eos_substellar = use_eos_substellar
+        
+        # Use array indices instead of particle IDs to uniquely track particles.
+        self.USE_IDX = USE_IDX
         
         # Open HDF5 file.
         with h5py.File(fname, 'r') as f:
@@ -444,18 +451,25 @@ class Snapshot:
             self.p0_molecular_mass_frac = p0['MolecularMassFraction'][()]
             
             # Calculate gas adiabatic index and temperature.
+            '''
             fH, f, xe            = self.HYDROGEN_MASSFRAC, p0['MolecularMassFraction'][()], self.p0_Ne
             f_mono, f_di         = fH*(xe + 1.-f) + (1.-fH)/4., fH*f/2.
             gamma_mono, gamma_di = 5./3., 7./5.
             gamma                = 1. + (f_mono + f_di) / (f_mono/(gamma_mono-1.) + f_di/(gamma_di-1.))
             self.p0_temperature  = (gamma - 1.) * self.p0_mean_molecular_weight * \
                                     self.u_to_temp_units * self.p0_E_int
+            '''
             
             # Gas temperature stored in snapshot.
             self.output_temperature = False
             if 'Temperature' in p0.keys():
                 self.output_temperature   = True
                 self.p0_temperature_GIZMO = p0['Temperature'][()]
+            # Use approximation without sophisticated gamma_di treatment.
+            else:
+                self.p0_temperature_GIZMO = self.get_temperature(self.p0_ids, use_eos_substellar=False)
+            self.p0_temperature = self.get_temperature(self.p0_ids, use_eos_substellar=self.use_eos_substellar)
+
             
             # Dust temperature.
             if 'Dust_Temperature' in p0.keys():
@@ -474,7 +488,7 @@ class Snapshot:
                     if 'Dust_Temperature' in p0.keys():
                         if verbose:
                             print('Calculating NMHD coefficients from snapshot fields using version {0:d}...'.format(self.NMHD_version), flush=True)
-                        eta_O, eta_H, eta_A = self.get_nonideal_MHD_coefficients(self.p0_ids, version=self.NMHD_version)
+                        eta_O, eta_H, eta_A = self.get_nonideal_MHD_coefficients(self.p0_ids, version=self.NMHD_version, use_eos_substellar=self.use_eos_substellar)
                     else:
                         eta_O, eta_H, eta_A = 0.0, 0.0, 0.0
                     self.p0_eta_O = eta_O
@@ -1330,10 +1344,161 @@ class Snapshot:
         T_transition          = self._DMIN(8000., nH_cgs)
         f_mol                 = 1./(1. + T_eff_atomic**2/T_transition**2)
         return 4. / (1. + (3. + 4.*self.p0_Ne[idx_g] - 2.*f_mol) * self.HYDROGEN_MASSFRAC)
+    
+    # Calculate gas adiabatic index.
+    def get_gamma_eos(self, gas_ids, USE_IDX=False, use_eos_substellar=False):
+        if USE_IDX:
+            idx_g = gas_ids
+        else:
+            idx_g = np.isin(self.p0_ids, gas_ids)
+        fH = self.HYDROGEN_MASSFRAC 
+        f  = self.p0_molecular_mass_frac[idx_g] 
+        xe = self.p0_Ne[idx_g]
+        f_mono, f_di         = fH*(xe + 1.-f) + (1.-fH)/4., fH*f/2.
+        gamma_mono, gamma_di = 5./3., 7./5.
+        if use_eos_substellar:
+            gamma_di = self.get_hydrogen_molecule_gamma(gas_ids, USE_IDX=USE_IDX);
+        gamma = 1. + (f_mono + f_di) / (f_mono/(gamma_mono-1.) + f_di/(gamma_di-1.))
+        return gamma
+
+    # Calculate gas temperature based on gas adiabatic index.
+    def get_temperature(self, gas_ids, USE_IDX=False, use_eos_substellar=False):
+        if USE_IDX:
+            idx_g = gas_ids
+        else:
+            idx_g = np.isin(self.p0_ids, gas_ids)
+        mol_weight  = self.p0_mean_molecular_weight[idx_g]
+        E_int       = self.p0_E_int[idx_g]
+        gamma       = self.get_gamma_eos(gas_ids, USE_IDX=USE_IDX, use_eos_substellar=use_eos_substellar)
+        temperature = (gamma - 1.) * mol_weight * self.u_to_temp_units * E_int
+        return temperature
+
+    # Calculate first adiabatic index of hydrogen molecule assuming
+    # a 3:1 ortho:para mixture. Use stored snapshot gas temperature (from ThermalProperties()).
+    def get_hydrogen_molecule_gamma(self, gas_ids, USE_IDX=False, verbose=False):
+        if USE_IDX:
+            idx_g = gas_ids
+        else:
+            idx_g = np.isin(self.p0_ids, gas_ids)
+        T_stored = self.p0_temperature_GIZMO[idx_g]
+        gamma_H  = np.ones(len(gas_ids))
+        idx_l    = (T_stored < 12.5)  # Lower limit: only translation modes.
+        idx_u    = (T_stored > 1e5)   # Upper limit: all degrees of freedom are excited.
+        idx_m    = np.logical_and((T_stored >= 12.5), (T_stored <= 1e5))
+        gamma_H[idx_l] = (5.0/3.0)
+        gamma_H[idx_u] = (9.0/7.0)
+        gas_ids_m      = gas_ids[idx_m]
+        if verbose:
+            print('num(upper limit) = {0:d} (T > 1e5)'.format(np.sum(idx_u)))
+            print('num(lower limit) = {0:d} (T < 12.5)'.format(np.sum(idx_l)))
+            print('num(middle)      = {0:d}'.format(np.sum(idx_m)))
+        z_rot = self.get_hydrogen_molecule_zrot_mixture(gas_ids_m, USE_IDX=USE_IDX)
+        z_vib = self.get_hydrogen_molecule_zvib(gas_ids_m, USE_IDX=USE_IDX)
+        cv    = 1.5 * np.ones(np.sum(idx_m))        # Translation
+        cv   += (z_rot[:, 2] / self.BOLTZMANN_CGS)  # Rotation
+        cv   += (z_vib[:, 2] / self.BOLTZMANN_CGS)  # Vibration
+        gamma_H[idx_m] = np.divide((cv + 1.0), cv)
+        return gamma_H
+        
+    # Rotational partition function of hydrogen molecule and derived quantities,
+    # considering a 3:1 mixture of ortho- and parahydrogen that cannot efficiently
+    # come into equilibrium.
+    # Returns an (n_gas, 3) array containing the partition function value, the average rotational energy per
+    # molecule, and the heat capacity per molecule at constant volume.
+    def get_hydrogen_molecule_zrot_mixture(self, gas_ids, USE_IDX=False, verbose=False):
+        n_gas = len(gas_ids)
+        if USE_IDX:
+            idx_g = gas_ids
+        else:
+            idx_g = np.isin(self.p0_ids, gas_ids)
+        T_stored   = self.p0_temperature_GIZMO[idx_g]
+        EPSILON    = 2.220446049250313e-16
+        THETA_ROT  = 85.4                   # in K
+        ortho_frac = 0.75                   # 3:1 mixture
+        para_frac  = 1.0 - ortho_frac
+        x          = np.divide(THETA_ROT, T_stored)
+        expmx      = np.exp(-x)
+        expmx4     = np.power(expmx, 4.0)
+        expterm    = np.multiply(expmx4, np.multiply(expmx, expmx))
+        z          = np.zeros((n_gas, 2))  # index 0 for para, 1 for ortho
+        zterm      = np.zeros((n_gas, 2))
+        dz_dtemp   = np.zeros((n_gas, 2))
+        d2z_dtemp2 = np.zeros((n_gas, 2))
+        
+        z[:, 0], zterm[:, 0] = 1.0, 1.0
+        z[:, 1], zterm[:, 1] = 9.0, 9.0
+        
+        # Sum over rotation levels. Need to do for each array index?
+        if verbose:
+            print('Summing over rotation levels for {0:d} particles'.format(n_gas), flush=True)
+        num_iters = np.zeros(n_gas)
+        for k in range(n_gas):
+            error           = 1e100
+            j, iteration    = 2, 0
+            dzterm, d2zterm = 0.0, 0.0
+            while(error > EPSILON):
+                iteration += 1
+                p            = j % 2
+                zterm[k, p] *= (2 * j + 1) * expterm[k] / (2 * j - 3)
+                jjplusone    = j * (j + 1)
+                if (p == 1): # ortho
+                    dzterm  = (jjplusone - 2) * x[k] * zterm[k, 1]
+                    d2zterm = ((jjplusone - 2) * x[k] - 2) * dzterm
+                else:        # para
+                    dzterm  = jjplusone * x[k] * zterm[k, 0]
+                    d2zterm = (jjplusone * x[k] - 2) * dzterm
+                z[k, p]          += zterm[k, p]
+                dz_dtemp[k, p]   += dzterm
+                d2z_dtemp2[k, p] += d2zterm
+                err0 = zterm[k, 0] / z[k, 0]
+                err1 = zterm[k, 1] / z[k, 1]
+                if (err1 > err0):
+                    error = err1
+                else:
+                    error = err0
+                expterm[k] *= expmx4[k]
+                j          += 1
+            num_iters[k] = iteration
+        if verbose:
+            print('Done summing over rotation levels.', flush=True)
+            print('Num. iterations: ', flush=True)
+            print('min = {0:.1f}, max = {1:.1f}'.format(np.min(num_iters), np.max(num_iters)), flush=True)
+            print('med = {0:.1f}, avg = {1:.1f}'.format(np.median(num_iters), np.mean(num_iters)), flush=True)
+        # Partition function, mean energy per molecule, heat capacity.
+        result       = np.zeros((n_gas, 3))
+        result[:, 0] = np.exp(para_frac * np.log(z[:, 0]) + ortho_frac * np.log(z[:, 1]))
+        result[:, 1] = self.BOLTZMANN_CGS * np.multiply(T_stored, (para_frac * np.divide(dz_dtemp[:, 0], z[:, 0]) + \
+                                                                   ortho_frac * np.divide(dz_dtemp[:, 1], z[:, 1])))
+        result[:, 2] = self.BOLTZMANN_CGS * (ortho_frac * np.divide((2 * dz_dtemp[:, 1] + d2z_dtemp2[:, 1] - \
+                       np.divide(np.multiply(dz_dtemp[:, 1], dz_dtemp[:, 1]), z[:, 1])), z[:, 1]) + \
+                       para_frac *  np.divide((2 * dz_dtemp[:, 0] + d2z_dtemp2[:, 0] - \
+                       np.divide(np.multiply(dz_dtemp[:, 0], dz_dtemp[:, 0]), z[:, 0])), z[:, 0]))
+        return result
+
+    # Vibrational partition function of hydrogen molecule and derived quantities.
+    # Returns an (n_gas, 3) array containing the partition function value, the 
+    # average rotational energy per molecule, and the heat capacity per molecule at 
+    # constant volume.
+    def get_hydrogen_molecule_zvib(self, gas_ids, USE_IDX=False): 
+        n_gas = len(gas_ids)
+        if USE_IDX:
+            idx_g = gas_ids
+        else:
+            idx_g = np.isin(self.p0_ids, gas_ids)
+        T_stored     = self.p0_temperature_GIZMO[idx_g]
+        THETA_VIB    = 6140.0
+        x            = THETA_VIB/T_stored
+        result       = np.zeros((n_gas, 3))
+        # expm1 function returns e^x - 1; more accurate when x is close to zero.
+        result[:, 0] = -1.0 / np.expm1(-x)
+        result[:, 1] = self.BOLTZMANN_CGS * THETA_VIB / np.expm1(x)
+        result[:, 2] = THETA_VIB * np.divide(np.multiply(result[:, 0], result[:, 1]), 
+                                             np.multiply(T_stored, T_stored))
+        return result
 
     # Calculate non-ideal MHD coefficients.
     def get_nonideal_MHD_coefficients(self, gas_ids, USE_IDX=False, version=5, a=0.1, cr=1.0e-17, etamax=1e24, 
-                                      use_stored_temperature=False, verbose=False):
+                                      use_eos_substellar=False, verbose=False):
 
         '''
         version 0: wrong sign on Z_grain.
@@ -1354,6 +1519,7 @@ class Snapshot:
         else:
             idx_g = np.isin(self.p0_ids, gas_ids)
             
+        '''
         if use_stored_temperature and self.output_temperature:
             p0_temperature = self.p0_temperature_GIZMO[idx_g]
             if verbose:
@@ -1362,10 +1528,10 @@ class Snapshot:
             p0_temperature = self.p0_temperature[idx_g]
             if verbose:
                 print('Using temperature as calculated from estimating the gas adiabatic index...', flush=True)
-            
+        '''
+        
+        p0_temperature = self.get_temperature(gas_ids, USE_IDX=USE_IDX, use_eos_substellar=use_eos_substellar)
 
-        #zeta_cr        = 1.0e-17
-        #a_grain_micron = 0.1
         zeta_cr        = cr
         a_grain_micron = a
         ag01           = a_grain_micron/0.1
