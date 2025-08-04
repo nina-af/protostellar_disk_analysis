@@ -15,7 +15,8 @@ class Snapshot_TURBSPHERE:
     """
 
     def __init__(self, M0, R0, alpha0, bturb0, fname,
-                 rho_min=None, G_code=4300.71, B_unit=1e4, cs0=200.0):
+                 rho_min=None, G_code=4300.71, B_unit=1e4, cs0=200.0,
+                 verbose=False):
 
         self.fname   = fname
         self.snapdir = self.get_snapdir()
@@ -99,6 +100,12 @@ class Snapshot_TURBSPHERE:
                 self.p0_By    = p0['MagneticField'][()][self.idx_g, 1]
                 self.p0_Bz    = p0['MagneticField'][()][self.idx_g, 2]
                 self.p0_B_mag = np.sqrt(self.p0_Bx**2 + self.p0_By**2 + self.p0_Bz**2)
+                if 'NonidealDiffusivities' in p0.keys():
+                    if verbose:
+                        print('Reading NMHD coefficients from snapshot...', flush=True)
+                    self.p0_eta_O = p0['NonidealDiffusivities'][()][:, 0]
+                    self.p0_eta_H = p0['NonidealDiffusivities'][()][:, 1]
+                    self.p0_eta_A = p0['NonidealDiffusivities'][()][:, 2]
             else:
                 self.p0_Bx    = np.zeros(len(self.p0_ids))
                 self.p0_By    = np.zeros(len(self.p0_ids))
