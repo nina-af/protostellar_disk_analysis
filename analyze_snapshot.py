@@ -1332,6 +1332,20 @@ class Snapshot:
             return self._sigmoid_sqrt(-0.006*(self.p0_dust_temp[idx_g] - 1500.))
         if defined == 'COOL_LOW_TEMPERATURES':
             return np.where(self.p0_dust_temp[idx_g] >= 2000.0, 1e-4, np.exp(-np.power(self.p0_dust_temp[idx_g]/1000.,3)))
+        
+    # Updated dust-to-metals ratio calculation.
+    def _return_dust_to_metals_ratio_vs_solar_v2(self, gas_ids, USE_IDX=False):
+        if USE_IDX:
+            idx_g = gas_ids
+        else:
+            idx_g = np.isin(self.p0_ids, gas_ids)
+        T_evap     = 1500.0
+        T_dust     = self.p0_dust_temp[idx_g]
+        Tdust_Tsub = T_dust / T_evap
+        # Crudely don't bother accounting for the size spectrum, just adopt an exponential cutoff above the sublimation temperature.
+        fdust = np.multiply(self._sigmoid_sqrt(9.0 * (1.0 - Tdust_Tsub)), 
+                            np.exp(-self._DMIN(40.0, np.multiply(Tdust_Tsub, Tdust_Tsub / 9.0))))
+        return self._DMAX(fdust, 1.0e-25)
 
     # Calculate gas mean molecular weight.
     def get_mean_molecular_weight(self, gas_ids, USE_IDX=False):
@@ -1509,6 +1523,8 @@ class Snapshot:
         version 5: new nu_i prefactor; CORRECT posdef sigma_A2.
         version 6: include x_neutral factor.
         version 7: apply etamax=1e24 cm^2 s^-1 cap.
+        version 8: use updated _return_dust_to_metals_ratio_vs_solar_v2().
+        version 9: set x_elec floor at 1e-18 (GIZMO fdf9a35) vs. 1e-16 (GIZMO 19f8fc81).
         '''
         
         if verbose:
@@ -1533,10 +1549,14 @@ class Snapshot:
         p0_temperature = self.get_temperature(gas_ids, USE_IDX=USE_IDX, use_eos_substellar=use_eos_substellar)
 
         zeta_cr        = cr
+        print('zeta_cr = {0:.1e}'.format(zeta_cr))
         a_grain_micron = a
         ag01           = a_grain_micron/0.1
         m_ion          = 24.3
-        dust_to_metals = self._return_dust_to_metals_ratio_vs_solar(gas_ids, defined='RT_INFRARED', USE_IDX=USE_IDX)
+        if (version < 8):
+            dust_to_metals = self._return_dust_to_metals_ratio_vs_solar(gas_ids, defined='RT_INFRARED', USE_IDX=USE_IDX)
+        else:
+            dust_to_metals = self._return_dust_to_metals_ratio_vs_solar_v2(gas_ids, USE_IDX=USE_IDX)
         f_dustgas      = 0.5 * self.p0_total_metallicity[idx_g] * dust_to_metals
 
         m_neutral  = self.p0_mean_molecular_weight[idx_g]
@@ -1551,7 +1571,11 @@ class Snapshot:
         y          = np.sqrt(m_ion*self.PROTONMASS_CGS/self.ELECTRONMASS_CGS)
 
         mu_eff  = 2.38
-        x_elec  = self._DMAX(1e-16, self.p0_Ne[idx_g]*self.HYDROGEN_MASSFRAC*mu_eff)
+        if (version < 9):
+            x_elec_floor = 1e-16
+        else:
+            x_elec_floor = 1e-18
+        x_elec  = self._DMAX(x_elec_floor, self.p0_Ne[idx_g]*self.HYDROGEN_MASSFRAC*mu_eff)
         R       = x_elec * psi_prefac/ngr_ngas
         psi_0   = -3.787124454911839
         psi     = psi_0

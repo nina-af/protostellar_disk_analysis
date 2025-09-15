@@ -296,7 +296,7 @@ def plot_density_proj(s, verbose=False, **kwargs):
                 else:
                     color = 'white'
                 prj.annotate_marker(particle, marker='o', plot_args={'s':scale, 'color':'black'})
-                prj.annotate_marker(particle, marker='o', plot_args={'s':scale, 'color':color, 'linewidth':1.5,
+                prj.annotate_marker(particle, marker='o', plot_args={'s':scale, 'color':color, 'linewidth':1.0,
                                                                      'edgecolor':'black'})
 
         if plot_unit_vec:
