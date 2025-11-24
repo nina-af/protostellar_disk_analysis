@@ -505,7 +505,8 @@ class YTProjectionPlotData:
                  pickle_data=True, pickdir=None,
                  center_coords=None, verbose=True, B_unit=1e4,
                  fname_pkl_stored=None, init_from_pkl=False,
-                 ids_ordered=None, center_sink_ids=None):
+                 ids_ordered=None, center_sink_ids=None,
+                 buff_size=None):
         
         # Physical constants.
         self.PROTONMASS_CGS     = 1.6726e-24
@@ -515,6 +516,9 @@ class YTProjectionPlotData:
         self.ELECTRONCHARGE_CGS = 4.8032e-10
         self.C_LIGHT_CGS        = 2.9979e10
         self.HYDROGEN_MASSFRAC  = 0.76
+        
+        # Buffer size for YT image resolution.
+        self.buff_size = buff_size
         
         if init_from_pkl:
             with open(fname_pkl_stored, "rb") as f_pkl:
@@ -804,8 +808,8 @@ class YTProjectionPlotData:
 
         return plot_data
             
-    def get_plot_data_from_YT(self, plot_data, field_list=[('gas', 'density')], weighted=False,
-                              moment_field=False, verbose=True):
+    def get_plot_data_from_YT(self, plot_data, field_list=[('gas', 'density')],
+                              weighted=False, moment_field=False, verbose=True):
         # Get new field data using YT.
         if verbose:
             print('Using YT to get new plot data...', flush=True)
@@ -851,6 +855,10 @@ class YTProjectionPlotData:
             prj = yt.ProjectionPlot(ds, self.ax, field_list, center=c, data_source=box)
         prj.set_axes_unit('AU')
         prj.zoom(self.zoom)
+        
+        # Set image resolution.
+        if self.buff_size is not None:
+            prj.set_buff_size(self.buff_size)
     
         # Need to plot/save figures to save data.
         tempname = os.path.join(self.pickdir, 'temp_prj.png')

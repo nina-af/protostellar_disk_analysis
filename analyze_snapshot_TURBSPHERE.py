@@ -129,6 +129,15 @@ class Snapshot_TURBSPHERE:
             gamma                = 1. + (f_mono + f_di) / (f_mono/(gamma_mono-1.) + f_di/(gamma_di-1.))
             self.p0_temperature  = (gamma - 1.) * self.p0_mean_molecular_weight * \
                                     self.u_to_temp_units * self.p0_E_int
+            self.gamma           = gamma
+            
+            # Temperature stored by GIZMO
+            if 'Temperature' in p0.keys():
+                self.p0_temperature_GIZMO = p0['Temperature'][()]
+                                
+            # Dust temperature.
+            if 'Dust_Temperature' in p0.keys():
+                self.p0_dust_temp = p0['Dust_Temperature'][()]
 
             # For convenience, coordinates and velocities in a (n_gas, 3) array.
             self.p0_coord = np.vstack((self.p0_x, self.p0_y, self.p0_z)).T
