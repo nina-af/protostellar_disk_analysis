@@ -335,7 +335,7 @@ class Snapshot:
     """
 
     def __init__(self, fname, cloud, B_unit=1e4, verbose=False, NMHD_version=5,
-                 use_eos_substellar=False, USE_IDX=False):
+                 use_eos_substellar=False, USE_IDX=False, include_timestep=False):
 
         # Physical constants.
         self.PROTONMASS_CGS     = 1.6726e-24
@@ -465,15 +465,18 @@ class Snapshot:
             if 'Temperature' in p0.keys():
                 self.output_temperature   = True
                 self.p0_temperature_GIZMO = p0['Temperature'][()]
-            # Use approximation without sophisticated gamma_di treatment.
+            # (OLD: Use approximation without sophisticated gamma_di treatment.)
+            # Actually, now just set to zero to make it clear that there is no native temperature field.
             else:
-                self.p0_temperature_GIZMO = self.get_temperature(self.p0_ids, use_eos_substellar=False)
+                #self.p0_temperature_GIZMO = self.get_temperature(self.p0_ids, use_eos_substellar=False)
+                self.p0_temperature_GIZMO = np.zeros(len(self.p0_ids))
             self.p0_temperature = self.get_temperature(self.p0_ids, use_eos_substellar=self.use_eos_substellar)
 
-            
             # Dust temperature.
             if 'Dust_Temperature' in p0.keys():
                 self.p0_dust_temp = p0['Dust_Temperature'][()]
+            else:
+                self.p0_dust_temp = np.zeros(len(self.p0_ids))
         
             # Get stored coefficients if HDF5 field exists.
             if 'MagneticField' in p0.keys():
@@ -499,8 +502,11 @@ class Snapshot:
                 self.p0_eta_H = np.zeros(len(self.p0_ids))
                 self.p0_eta_A = np.zeros(len(self.p0_ids))
             
-            if 'TimeStep' in p0.keys():
-                self.p0_timestep = p0['TimeStep'][()]
+            if include_timestep:
+                if 'TimeStep' in p0.keys():
+                    self.p0_timestep = p0['TimeStep'][()]
+                else:
+                    self.p0_timestep = np.zeros(len(self.p0_ids))
 
             # For convenience, coordinates and velocities in a (n_gas, 3) array.
             self.p0_coord = np.vstack((self.p0_x, self.p0_y, self.p0_z)).T
