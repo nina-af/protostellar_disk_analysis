@@ -32,6 +32,16 @@ from plot_yt_data import YTSlicePlotData, YTProjectionPlotData
 M0, R0, alpha0 = 4.0, 0.065, 0.5
 cloud          = Cloud(M0, R0, alpha0)
 
+# Units.
+m_unit     = 1.989e+33
+l_unit     = 3.085678e+18
+v_unit     = 100.0
+B_unit     = 1e4
+t_unit     = (l_unit/v_unit)
+t_unit_myr = t_unit/(3600.0 * 24.0 * 365.0 * 1e6)
+cm_to_AU   = 6.68459e-14
+eta_unit   = l_unit**2/t_unit
+
 plt.rcParams['font.family'     ] = 'STIXGeneral'
 plt.rcParams['mathtext.fontset'] = 'stix'
 
