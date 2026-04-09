@@ -466,17 +466,19 @@ class Snapshot:
                 self.output_temperature   = True
                 self.p0_temperature_GIZMO = p0['Temperature'][()]
             # (OLD: Use approximation without sophisticated gamma_di treatment.)
-            # Actually, now just set to zero to make it clear that there is no native temperature field.
+            # Actually, now just set to None to make it clear that there is no native temperature field.
             else:
                 #self.p0_temperature_GIZMO = self.get_temperature(self.p0_ids, use_eos_substellar=False)
-                self.p0_temperature_GIZMO = np.zeros(len(self.p0_ids))
+                #self.p0_temperature_GIZMO = np.zeros(len(self.p0_ids))
+                self.p0_temperature_GIZMO = None
             self.p0_temperature = self.get_temperature(self.p0_ids, use_eos_substellar=self.use_eos_substellar)
 
             # Dust temperature.
             if 'Dust_Temperature' in p0.keys():
                 self.p0_dust_temp = p0['Dust_Temperature'][()]
             else:
-                self.p0_dust_temp = np.zeros(len(self.p0_ids))
+                #self.p0_dust_temp = np.zeros(len(self.p0_ids))
+                self.p0_dust_temp = None
         
             # Get stored coefficients if HDF5 field exists.
             if 'MagneticField' in p0.keys():
@@ -498,15 +500,23 @@ class Snapshot:
                     self.p0_eta_H = eta_H
                     self.p0_eta_A = eta_A
             else:
-                self.p0_eta_O = np.zeros(len(self.p0_ids))
-                self.p0_eta_H = np.zeros(len(self.p0_ids))
-                self.p0_eta_A = np.zeros(len(self.p0_ids))
+                #self.p0_eta_O = np.zeros(len(self.p0_ids))
+                #self.p0_eta_H = np.zeros(len(self.p0_ids))
+                #self.p0_eta_A = np.zeros(len(self.p0_ids))
+                self.p0_eta_O = None
+                self.p0_eta_H = None
+                self.p0_eta_A = None
+
+            # Dust grain radius, if using density-based scaling to calculate dust size.
+            if 'NonidealGrainSize' in p0.keys():
+                self.p0_a_grain = p0['NonidealGrainSize'][()]
             
             if include_timestep:
                 if 'TimeStep' in p0.keys():
                     self.p0_timestep = p0['TimeStep'][()]
                 else:
-                    self.p0_timestep = np.zeros(len(self.p0_ids))
+                    #self.p0_timestep = np.zeros(len(self.p0_ids))
+                    self.p0_timestep = None
 
             # For convenience, coordinates and velocities in a (n_gas, 3) array.
             self.p0_coord = np.vstack((self.p0_x, self.p0_y, self.p0_z)).T
