@@ -1131,7 +1131,8 @@ class Snapshot:
     # Identify gas particles in gas_ids belonging to disk around sink_ids.
     def get_disk(self, sink_ids, gas_ids, r_max_AU=500.0, n_H_min=1e9, verbose=False,
                  disk_name='', save_disk=False, diskdir=None, get_L_vec=False, USE_IDX=False,
-                 check_nearest_neighbor=True, set_rmax_half=False, return_masks=False):
+                 check_nearest_neighbor=True, set_rmax_half=False, return_masks=False,
+                 exclude_sinks=False, sinks_to_exclude=None):
         """
         Identifies subset of specified gas particles belonging to disk
         around specified sink particles based upon the following checks:
@@ -1144,6 +1145,8 @@ class Snapshot:
             - gas_ids: particle IDs of the specified gas particles.
             - r_max_AU: max disk radius in AU about sink center of mass.
             - n_H_min: minimum number density threshold.
+            - exclude_sinks: if True, pass a list of sinks to skip in the nearest neighbor check.
+            - sinks_to_exclude: skip these sinks when checking whether disk radius should be trunctated
         Returns:
             - disk_ids [1D array]: particle IDs of gas particles belonging to
             disk.
@@ -1185,6 +1188,7 @@ class Snapshot:
         if verbose:
             print('Initial r_max = {0:.1f} AU.'.format(r_max_AU), flush=True)
         # Check that r_max is less than distance from center of mass to nearest non-disk sink particle.
+        # New: pass list of sink IDs to exclude from this check.
         r_max_truncated_by_neighbor = False
         r_max = r_max_code
         if (self.num_p5 > 1) and (check_nearest_neighbor):
@@ -1201,8 +1205,24 @@ class Snapshot:
                     r, ids, idx = self.sort_sinks_by_distance_to_point(other_sink_ids, sink_x)
                     # Sort other sinks by distance to primary (most massive) sink.
                     #r, ids, idx = self.sort_sinks_by_distance_to_sink(other_sink_ids, primary_sink)
+            # Compare nearest sink particles with list of sink IDs to exclude from this check.
+            nearest_sink_i = 0
+            if exclude_sinks:
+                if verbose:
+                    print('Comparing nearest sink particles with list of sink IDs to exclude from proximity check...', flush=True)
+                    print('Nearest sink IDs: ' + str(ids), flush=True)
+                    print('Distances:        ' + str(r), flush=True)
+                    print('Sinks to exclude: ' + str(sinks_to_exclude), flush=True)
+                if (sinks_to_exclude is None):
+                    mask_to_include = np.isin(ids, ids)
+                else:
+                    mask_include = np.isin(ids, sinks_to_exclude, invert=True)
+                idx_include    = np.arange(len(ids))[mask_include]
+                nearest_sink_i = idx_include[0]
+                if verbose:
+                    print('nearest sink to include = {0:d}'.format(ids[nearest_sink_i]), flush=True)
             # Minimum distance to non-disk sink particles [code units].
-            r_near_code = r[0]
+            r_near_code = r[nearest_sink_i]
             r_near_cgs  = r_near_code * self.l_unit
             r_near_AU   = r_near_cgs * self.cm_to_AU
             if verbose:
