@@ -1198,8 +1198,10 @@ class Snapshot:
                 r, ids, idx = self.sort_sinks_by_distance_to_sink(self.p5_ids, primary_sink)
             else:
                 other_sink_ids = self.p5_ids[np.isin(self.p5_ids, sink_ids, invert=True)]
+                if verbose:
+                    print('other sink ids: ' + str(other_sink_ids), flush=True)
                 if len(other_sink_ids) == 0:
-                    r = np.asarray([10.0*r_max_code])
+                    r, ids, idx = np.asarray([10.0*r_max_code]), None, None
                 else:
                     # Sort other sinks by distance to sink system center of mass.
                     r, ids, idx = self.sort_sinks_by_distance_to_point(other_sink_ids, sink_x)
